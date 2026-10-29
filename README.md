@@ -13,14 +13,12 @@ Cloud Optimizer is a senior project that helps teams find cloud resource waste a
 ## Technology
 
 - Django and Python
-- PostgreSQL
-- AWS services, including EC2, Lambda, EventBridge, and ECS
+- DynamoDB, EC2, Lambda, EventBridge, and ECS
 - Boto3
 - Terraform
 
 ## Project Structure
 
-- `/frontend` - frontend application
-- `/backend` - backend application and API
+- `/app` - frontand and backend django application and API
 - `/infra` - Terraform and infrastructure configuration
 - `/poc` - proof-of-concept code
