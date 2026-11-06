@@ -87,9 +87,3 @@ variable "enable_audit_schedule" {
   type        = bool
   default     = true
 }
-
-variable "customer_role_name" {
-  description = "Role name customers create in their account for us"
-  type        = string
-  default     = "CloudOptimizerAccess"
-}

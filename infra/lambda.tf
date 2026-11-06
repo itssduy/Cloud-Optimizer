@@ -24,7 +24,6 @@ resource "aws_lambda_function" "audit" {
   environment {
     variables = {
       DYNAMODB_TABLE_NAME = aws_dynamodb_table.main.name
-      CUSTOMER_ROLE_NAME  = var.customer_role_name
     }
   }
 

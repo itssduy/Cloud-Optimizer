@@ -18,11 +18,25 @@ data "aws_iam_policy_document" "lambda_assume" {
   }
 }
 
-# let us assume the role customers make in their account
-data "aws_iam_policy_document" "assume_customer_roles" {
+# what the audit reads in this account
+data "aws_iam_policy_document" "audit_read" {
   statement {
-    actions   = ["sts:AssumeRole"]
-    resources = [local.customer_role_arn_pattern]
+    actions = [
+      "ec2:DescribeInstances",
+      "cloudwatch:GetMetricStatistics",
+      "s3:ListAllMyBuckets",
+      "s3:GetBucketLocation",
+      "s3:GetLifecycleConfiguration",
+      "ce:GetCostAndUsage",
+    ]
+    resources = ["*"]
+  }
+}
+
+data "aws_iam_policy_document" "ec2_start_stop" {
+  statement {
+    actions   = ["ec2:DescribeInstances", "ec2:StartInstances", "ec2:StopInstances"]
+    resources = ["*"]
   }
 }
 
@@ -81,7 +95,7 @@ resource "aws_iam_role" "app_task" {
 
 data "aws_iam_policy_document" "app_task" {
   source_policy_documents = [
-    data.aws_iam_policy_document.assume_customer_roles.json,
+    data.aws_iam_policy_document.ec2_start_stop.json,
     data.aws_iam_policy_document.dynamodb_rw.json,
   ]
 }
@@ -106,7 +120,7 @@ resource "aws_iam_role_policy_attachment" "audit_lambda_logs" {
 
 data "aws_iam_policy_document" "audit_lambda" {
   source_policy_documents = [
-    data.aws_iam_policy_document.assume_customer_roles.json,
+    data.aws_iam_policy_document.audit_read.json,
     data.aws_iam_policy_document.dynamodb_rw.json,
   ]
 }

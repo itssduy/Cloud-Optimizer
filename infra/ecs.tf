@@ -41,7 +41,6 @@ resource "aws_ecs_task_definition" "app" {
       { name = "DJANGO_ALLOWED_HOSTS", value = join(",", var.allowed_hosts) },
       { name = "DYNAMODB_TABLE_NAME", value = aws_dynamodb_table.main.name },
       { name = "AWS_REGION", value = var.aws_region },
-      { name = "CUSTOMER_ROLE_NAME", value = var.customer_role_name },
     ]
 
     secrets = [

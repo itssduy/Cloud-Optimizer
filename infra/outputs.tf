@@ -41,11 +41,3 @@ output "dynamodb_table_arn" {
 output "audit_lambda_name" {
   value = aws_lambda_function.audit.function_name
 }
-
-output "app_task_role_arn" {
-  value = aws_iam_role.app_task.arn
-}
-
-output "audit_lambda_role_arn" {
-  value = aws_iam_role.audit_lambda.arn
-}
