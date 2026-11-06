@@ -1,0 +1,28 @@
+{
+  "pk": "ACCT#u_7f3a9c21#123456789012",
+  "sk": "COST#2026-11-05",
+  "type": "daily_cost",
+  "user_id": "u_7f3a9c21",
+  "account_id": "123456789012",
+  "date": "2026-11-05",
+  "total": {
+    "amount": 4.82,
+    "currency": "USD",
+    "estimated": true
+  },
+  "by_service": {
+    "Amazon Elastic Compute Cloud - Compute": {
+      "amount": 3.1,
+      "currency": "USD",
+      "estimated": true
+    },
+    "Amazon Simple Storage Service": {
+      "amount": 1.72,
+      "currency": "USD",
+      "estimated": true
+    }
+  },
+  "source": "cost_explorer",
+  "fetched_at": "2026-11-06T06:02:30Z",
+  "expires_at": 1828396800
+}

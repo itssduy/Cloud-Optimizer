@@ -1,0 +1,35 @@
+{
+  "pk": "ACCT#u_7f3a9c21#123456789012",
+  "sk": "FIND#ec2_instance#us-east-1#i-0abc123def4567890#ec2_idle_cpu",
+  "type": "finding",
+  "user_id": "u_7f3a9c21",
+  "account_id": "123456789012",
+  "resource_type": "ec2_instance",
+  "region": "us-east-1",
+  "resource_id": "i-0abc123def4567890",
+  "rule": "ec2_idle_cpu",
+  "status": "open",
+  "reason": "Average CPU was 1.2% over the last 7 days (threshold 5%).",
+  "evidence": {
+    "metric": "CPUUtilization",
+    "statistic": "Average",
+    "average": 1.2,
+    "threshold": 5,
+    "period_days": 7,
+    "datapoints": 168,
+    "expected_datapoints": 168
+  },
+  "recommendation": {
+    "action": "ec2_stop",
+    "text": "Stop the instance if it isn't needed, or downsize it."
+  },
+  "estimated_monthly_savings": {
+    "amount": 30.37,
+    "currency": "USD",
+    "estimated": true
+  },
+  "scan_id": "scan_4b8e1d0a",
+  "first_detected_at": "2026-11-02T06:01:10Z",
+  "last_detected_at": "2026-11-06T06:01:05Z",
+  "resolved_at": null
+}

@@ -1,0 +1,28 @@
+{
+  "pk": "ACCT#u_7f3a9c21#123456789012",
+  "sk": "ACTION#2026-11-06T14:12:00Z#act_e1f04b77",
+  "type": "action",
+  "user_id": "u_7f3a9c21",
+  "account_id": "123456789012",
+  "action_id": "act_e1f04b77",
+  "action_type": "ec2_stop",
+  "target": {
+    "resource_type": "ec2_instance",
+    "region": "us-east-1",
+    "resource_id": "i-0abc123def4567890"
+  },
+  "change": {
+    "before": {
+      "state": "running"
+    },
+    "after": {
+      "state": "stopped"
+    }
+  },
+  "requested_by": "u_7f3a9c21",
+  "requested_at": "2026-11-06T14:12:00Z",
+  "request_status": "sent",
+  "request_error": null,
+  "outcome": "verified",
+  "outcome_checked_at": "2026-11-06T14:13:30Z"
+}

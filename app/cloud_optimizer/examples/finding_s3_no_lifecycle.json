@@ -1,0 +1,27 @@
+{
+  "pk": "ACCT#u_7f3a9c21#123456789012",
+  "sk": "FIND#s3_bucket#us-east-1#acme-old-logs#s3_no_lifecycle",
+  "type": "finding",
+  "user_id": "u_7f3a9c21",
+  "account_id": "123456789012",
+  "resource_type": "s3_bucket",
+  "region": "us-east-1",
+  "resource_id": "acme-old-logs",
+  "rule": "s3_no_lifecycle",
+  "status": "open",
+  "reason": "412 GB in STANDARD with no lifecycle rules.",
+  "evidence": {
+    "size_bytes": 412000000000,
+    "storage_class": "STANDARD",
+    "has_lifecycle_rules": false
+  },
+  "recommendation": {
+    "action": "s3_apply_lifecycle",
+    "text": "Move objects older than 30 days to Standard-IA."
+  },
+  "estimated_monthly_savings": null,
+  "scan_id": "scan_4b8e1d0a",
+  "first_detected_at": "2026-11-06T06:01:40Z",
+  "last_detected_at": "2026-11-06T06:01:40Z",
+  "resolved_at": null
+}

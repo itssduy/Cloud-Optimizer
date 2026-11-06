@@ -1,0 +1,24 @@
+{
+  "pk": "ACCT#u_7f3a9c21#123456789012",
+  "sk": "SCAN#2026-11-05T06:00:00Z#scan_91c0e7f2",
+  "type": "scan",
+  "user_id": "u_7f3a9c21",
+  "account_id": "123456789012",
+  "scan_id": "scan_91c0e7f2",
+  "status": "partial",
+  "regions": [
+    "us-east-1"
+  ],
+  "started_at": "2026-11-05T06:00:00Z",
+  "completed_at": "2026-11-05T06:02:40Z",
+  "resource_count": 3,
+  "finding_count": 1,
+  "errors": [
+    {
+      "service": "s3",
+      "region": "us-east-1",
+      "message": "AccessDenied on ListBuckets"
+    }
+  ],
+  "expires_at": 1801634400
+}
