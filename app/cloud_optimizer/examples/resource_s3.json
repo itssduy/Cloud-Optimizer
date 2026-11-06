@@ -1,8 +1,7 @@
 {
-  "pk": "ACCT#u_7f3a9c21#123456789012",
+  "pk": "ACCT#123456789012",
   "sk": "RES#s3_bucket#us-east-1#acme-old-logs",
   "type": "resource",
-  "user_id": "u_7f3a9c21",
   "account_id": "123456789012",
   "resource_type": "s3_bucket",
   "region": "us-east-1",
