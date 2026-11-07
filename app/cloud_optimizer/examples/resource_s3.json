@@ -1,0 +1,22 @@
+{
+  "pk": "ACCT#123456789012",
+  "sk": "RES#s3_bucket#us-east-1#acme-old-logs",
+  "type": "resource",
+  "account_id": "123456789012",
+  "resource_type": "s3_bucket",
+  "region": "us-east-1",
+  "resource_id": "acme-old-logs",
+  "name": "acme-old-logs",
+  "state": "active",
+  "details": {
+    "object_count": 48210,
+    "size_bytes": 412000000000,
+    "storage_classes": {
+      "STANDARD": 412000000000
+    },
+    "has_lifecycle_rules": false
+  },
+  "last_scan_id": "scan_4b8e1d0a",
+  "first_seen_at": "2026-11-01T18:30:00Z",
+  "last_seen_at": "2026-11-06T06:01:40Z"
+}

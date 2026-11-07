@@ -1,0 +1,10 @@
+{
+  "pk": "USER#u_7f3a9c21",
+  "sk": "PROFILE",
+  "type": "user",
+  "user_id": "u_7f3a9c21",
+  "email": "duy@example.com",
+  "name": "Duy",
+  "password_hash": "pbkdf2_sha256$1000000$salt$hash",
+  "created_at": "2026-11-01T18:20:00Z"
+}

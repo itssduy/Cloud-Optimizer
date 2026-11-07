@@ -1,0 +1,18 @@
+{
+  "pk": "ACCT#123456789012",
+  "sk": "SAVINGS",
+  "type": "savings",
+  "account_id": "123456789012",
+  "total_monthly": {
+    "amount": 30.37,
+    "currency": "USD",
+    "estimated": true
+  },
+  "finding_count": 2,
+  "missing_estimate_count": 1,
+  "assumptions": [
+    "On-demand Linux price in us-east-1, 730 hours/month",
+    "Stopped instances only save compute, not EBS storage"
+  ],
+  "calculated_at": "2026-11-06T06:03:00Z"
+}

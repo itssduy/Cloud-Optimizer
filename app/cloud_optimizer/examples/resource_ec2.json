@@ -1,0 +1,22 @@
+{
+  "pk": "ACCT#123456789012",
+  "sk": "RES#ec2_instance#us-east-1#i-0abc123def4567890",
+  "type": "resource",
+  "account_id": "123456789012",
+  "resource_type": "ec2_instance",
+  "region": "us-east-1",
+  "resource_id": "i-0abc123def4567890",
+  "name": "old-staging-api",
+  "state": "running",
+  "details": {
+    "instance_type": "t3.medium",
+    "launch_time": "2026-08-14T15:02:00Z",
+    "platform": "linux",
+    "tags": {
+      "env": "staging"
+    }
+  },
+  "last_scan_id": "scan_4b8e1d0a",
+  "first_seen_at": "2026-11-01T18:30:00Z",
+  "last_seen_at": "2026-11-06T06:01:05Z"
+}

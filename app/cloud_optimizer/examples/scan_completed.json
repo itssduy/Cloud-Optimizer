@@ -1,0 +1,17 @@
+{
+  "pk": "ACCT#123456789012",
+  "sk": "SCAN#2026-11-06T06:00:00Z#scan_4b8e1d0a",
+  "type": "scan",
+  "account_id": "123456789012",
+  "scan_id": "scan_4b8e1d0a",
+  "status": "completed",
+  "regions": [
+    "us-east-1"
+  ],
+  "started_at": "2026-11-06T06:00:00Z",
+  "completed_at": "2026-11-06T06:03:12Z",
+  "resource_count": 5,
+  "finding_count": 2,
+  "errors": [],
+  "expires_at": 1801720800
+}
