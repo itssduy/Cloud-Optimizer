@@ -1,0 +1,10 @@
+# rename to backend.tf to use shared state
+terraform {
+  backend "s3" {
+    bucket       = "cloud-optimizer-tfstate-<account-id>"
+    key          = "dev/terraform.tfstate"
+    region       = "us-east-1"
+    use_lockfile = true
+    encrypt      = true
+  }
+}
