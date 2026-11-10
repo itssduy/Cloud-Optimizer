@@ -1,0 +1,47 @@
+{% extends "cloud_optimizer/base.html" %}
+{% block content %}
+<h1>Users</h1>
+<table>
+  <tr><th>Email</th><th>Name</th><th>Role</th><th>Status</th><th></th></tr>
+  {% for u in users %}
+  <tr>
+    <td>{{ u.email }}</td>
+    <td>{{ u.name }}</td>
+    <td>{{ u.role }}</td>
+    <td>{{ u.status }}</td>
+    <td>
+      {% if u.user_id != me.user_id %}
+      <form method="post" action="{% url 'user_update' u.user_id %}">
+        {% csrf_token %}
+        {% if u.status == "active" %}
+          <button name="action" value="disable">Disable</button>
+        {% else %}
+          <button name="action" value="enable">Enable</button>
+        {% endif %}
+      </form>
+      <form method="post" action="{% url 'user_update' u.user_id %}">
+        {% csrf_token %}
+        <select name="role">{% for r in roles %}<option {% if r == u.role %}selected{% endif %}>{{ r }}</option>{% endfor %}</select>
+        <button name="action" value="role">Change role</button>
+      </form>
+      <form method="post" action="{% url 'user_update' u.user_id %}">
+        {% csrf_token %}
+        <input name="password" type="password" placeholder="New password" required>
+        <button name="action" value="reset_password">Reset password</button>
+      </form>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+
+<h2>Add user</h2>
+<form method="post">
+  {% csrf_token %}
+  <input name="name" placeholder="Name">
+  <input name="email" type="email" placeholder="Email" required>
+  <input name="password" type="password" placeholder="Temporary password" required>
+  <select name="role">{% for r in roles %}<option>{{ r }}</option>{% endfor %}</select>
+  <button>Add</button>
+</form>
+{% endblock %}

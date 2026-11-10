@@ -1,6 +1,6 @@
 {
-  "pk": "USER#u_7f3a9c21",
-  "sk": "PROFILE",
+  "pk": "USERS",
+  "sk": "USER#u_7f3a9c21",
   "type": "user",
   "user_id": "u_7f3a9c21",
   "email": "duy@example.com",

@@ -1,6 +1,6 @@
 # DynamoDB keys. See examples/ for what each item looks like.
 #
-# USER#<user_id>               PROFILE
+# USERS                        USER#<user_id>
 # EMAIL#<email>                LOOKUP
 # DEPLOYMENT                   CONFIG
 # ACCT#<account_id>            SCAN#<started_at>#<scan_id>
@@ -15,7 +15,10 @@ SCAN_TTL_DAYS = 90
 COST_TTL_DAYS = 400
 
 
-def user_pk(user_id):
+USERS_PK = "USERS"
+
+
+def user_sk(user_id):
     return f"USER#{user_id}"
 
 

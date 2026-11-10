@@ -1,25 +1,13 @@
-"""
-URL configuration for cloud_optimizer_project project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/6.1/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
-from django.contrib import admin
 from django.urls import path
 
 from cloud_optimizer import views
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path('', views.home, name='home'),
     path('health/', views.health),
+    path('login/', views.login_view, name='login'),
+    path('logout/', views.logout_view, name='logout'),
+    path('setup/', views.setup, name='setup'),
+    path('users/', views.users_view, name='users'),
+    path('users/<str:user_id>/', views.user_update, name='user_update'),
 ]

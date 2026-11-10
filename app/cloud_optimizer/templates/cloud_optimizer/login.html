@@ -1,0 +1,10 @@
+{% extends "cloud_optimizer/base.html" %}
+{% block content %}
+<h1>Log in</h1>
+<form method="post">
+  {% csrf_token %}
+  <input name="email" type="email" placeholder="Email" required>
+  <input name="password" type="password" placeholder="Password" required>
+  <button>Log in</button>
+</form>
+{% endblock %}
