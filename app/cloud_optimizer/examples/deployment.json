@@ -1,0 +1,17 @@
+{
+  "pk": "DEPLOYMENT",
+  "sk": "CONFIG",
+  "type": "deployment",
+  "account_id": "123456789012",
+  "regions": [
+    "us-east-1"
+  ],
+  "resource_types": [
+    "ec2_instance",
+    "s3_bucket"
+  ],
+  "status": "ready",
+  "last_scan_id": "scan_4b8e1d0a",
+  "last_scan_at": "2026-11-06T06:00:00Z",
+  "created_at": "2026-11-01T18:20:00Z"
+}
