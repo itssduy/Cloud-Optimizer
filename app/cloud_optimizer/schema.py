@@ -2,6 +2,7 @@
 #
 # USER#<user_id>               PROFILE
 # EMAIL#<email>                LOOKUP
+# DEPLOYMENT                   CONFIG
 # ACCT#<account_id>            SCAN#<started_at>#<scan_id>
 # ACCT#<account_id>            RES#<type>#<region>#<resource_id>
 # ACCT#<account_id>            FIND#<type>#<region>#<resource_id>#<rule>
@@ -20,6 +21,9 @@ def user_pk(user_id):
 
 def email_pk(email):
     return f"EMAIL#{email.lower()}"
+
+
+DEPLOYMENT_PK = "DEPLOYMENT"
 
 
 def account_pk(account_id):
