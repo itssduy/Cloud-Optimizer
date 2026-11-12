@@ -8,19 +8,22 @@
   "resource_id": "i-0abc123def4567890",
   "rule": "ec2_idle_cpu",
   "status": "open",
-  "reason": "Average CPU was 1.2% over the last 7 days (threshold 5%).",
+  "reason": "Average CPU was 1.2% over the last 7 days (threshold 5%). Low CPU doesn't always mean it's unused.",
   "evidence": {
     "metric": "CPUUtilization",
     "statistic": "Average",
     "average": 1.2,
-    "threshold": 5,
     "period_days": 7,
     "datapoints": 168,
-    "expected_datapoints": 168
+    "expected_datapoints": 168,
+    "window_start": "2026-10-30T06:01:05Z",
+    "window_end": "2026-11-06T06:01:05Z",
+    "threshold": 5.0,
+    "instance_type": "t3.medium"
   },
   "recommendation": {
     "action": "ec2_stop",
-    "text": "Stop the instance if it isn't needed, or downsize it."
+    "text": "Check if the instance is still needed. Stop it or move to a smaller type."
   },
   "estimated_monthly_savings": {
     "amount": 30.37,
