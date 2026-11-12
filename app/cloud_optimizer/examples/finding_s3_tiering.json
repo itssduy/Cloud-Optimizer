@@ -1,0 +1,42 @@
+{
+  "pk": "ACCT#123456789012",
+  "type": "finding",
+  "account_id": "123456789012",
+  "resource_type": "s3_bucket",
+  "region": "us-east-1",
+  "resource_id": "acme-old-logs",
+  "status": "open",
+  "estimated_monthly_savings": null,
+  "scan_id": "scan_4b8e1d0a",
+  "first_detected_at": "2026-11-06T06:01:40Z",
+  "last_detected_at": "2026-11-06T06:01:40Z",
+  "resolved_at": null,
+  "sk": "FIND#s3_bucket#us-east-1#acme-old-logs#s3_tiering_candidate",
+  "rule": "s3_tiering_candidate",
+  "reason": "383.7 GiB in S3 Standard with no transition rules. We can't see how often it's read, so Intelligent-Tiering is the safe option.",
+  "evidence": {
+    "standard_size_bytes": 412000000000,
+    "object_count": 48210,
+    "avg_object_bytes": 8545944,
+    "metrics_at": "2026-11-05T00:00:00Z",
+    "min_size_bytes": 10737418240,
+    "access_pattern": "unknown"
+  },
+  "recommendation": {
+    "action": "s3_apply_lifecycle",
+    "text": "Move objects to Intelligent-Tiering. It has a small monitoring fee per object.",
+    "proposed_rule": {
+      "ID": "cloud-optimizer-tiering",
+      "Status": "Enabled",
+      "Filter": {
+        "ObjectSizeGreaterThan": 131072
+      },
+      "Transitions": [
+        {
+          "Days": 0,
+          "StorageClass": "INTELLIGENT_TIERING"
+        }
+      ]
+    }
+  }
+}

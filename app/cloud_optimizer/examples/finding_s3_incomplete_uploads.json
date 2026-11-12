@@ -1,0 +1,35 @@
+{
+  "pk": "ACCT#123456789012",
+  "type": "finding",
+  "account_id": "123456789012",
+  "resource_type": "s3_bucket",
+  "region": "us-east-1",
+  "resource_id": "acme-old-logs",
+  "status": "open",
+  "estimated_monthly_savings": null,
+  "scan_id": "scan_4b8e1d0a",
+  "first_detected_at": "2026-11-06T06:01:40Z",
+  "last_detected_at": "2026-11-06T06:01:40Z",
+  "resolved_at": null,
+  "sk": "FIND#s3_bucket#us-east-1#acme-old-logs#s3_incomplete_uploads",
+  "rule": "s3_incomplete_uploads",
+  "reason": "3 incomplete multipart uploads older than 7 days. You pay for their parts but they aren't visible as objects.",
+  "evidence": {
+    "stale_upload_count": 3,
+    "oldest_initiated": "2026-09-02T11:14:00Z",
+    "age_threshold_days": 7,
+    "checked_at": "2026-11-06T06:01:40Z"
+  },
+  "recommendation": {
+    "action": "s3_apply_lifecycle",
+    "text": "Add a lifecycle rule to abort incomplete uploads after 7 days.",
+    "proposed_rule": {
+      "ID": "cloud-optimizer-abort-uploads",
+      "Status": "Enabled",
+      "Filter": {},
+      "AbortIncompleteMultipartUpload": {
+        "DaysAfterInitiation": 7
+      }
+    }
+  }
+}

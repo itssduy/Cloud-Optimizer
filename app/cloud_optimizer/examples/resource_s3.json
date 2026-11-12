@@ -9,11 +9,9 @@
   "name": "acme-old-logs",
   "state": "active",
   "details": {
+    "standard_size_bytes": 412000000000,
     "object_count": 48210,
-    "size_bytes": 412000000000,
-    "storage_classes": {
-      "STANDARD": 412000000000
-    },
+    "metrics_at": "2026-11-05T00:00:00Z",
     "has_lifecycle_rules": false
   },
   "last_scan_id": "scan_4b8e1d0a",
