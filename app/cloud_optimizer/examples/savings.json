@@ -10,9 +10,18 @@
   },
   "finding_count": 2,
   "missing_estimate_count": 1,
+  "missing_estimates": [
+    {
+      "resource_id": "acme-old-logs",
+      "rule": "s3_tiering_candidate",
+      "reason": "S3 savings depend on access patterns we can't see"
+    }
+  ],
   "assumptions": [
-    "On-demand Linux price in us-east-1, 730 hours/month",
-    "Stopped instances only save compute, not EBS storage"
+    "EC2: us-east-1 Linux on-demand price, stopped for a full month (730 hours)",
+    "EC2: stopping only saves compute, EBS volumes are still billed",
+    "S3: no estimate yet, we can't see access patterns or incomplete upload sizes",
+    "Estimates are potential savings, not money already saved"
   ],
   "calculated_at": "2026-11-06T06:03:00Z"
 }
