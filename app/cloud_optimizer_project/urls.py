@@ -1,6 +1,6 @@
 from django.urls import path
 
-from cloud_optimizer import api, views
+from cloud_optimizer import actions, api, views
 
 urlpatterns = [
     path('', views.home, name='home'),
@@ -18,4 +18,6 @@ urlpatterns = [
     path('api/costs/', api.costs),
     path('api/alerts/', api.alerts),
     path('api/actions/', api.actions),
+    path('api/actions/<str:request_id>/', actions.action_status),
+    path('api/ec2/<str:instance_id>/<str:action>/', actions.request_action),
 ]
