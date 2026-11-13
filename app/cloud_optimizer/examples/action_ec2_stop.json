@@ -22,6 +22,7 @@
   "requested_at": "2026-11-06T14:12:00Z",
   "request_status": "sent",
   "request_error": null,
+  "observed_state": "stopped",
   "outcome": "verified",
   "outcome_checked_at": "2026-11-06T14:13:30Z"
 }
