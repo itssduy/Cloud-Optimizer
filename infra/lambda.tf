@@ -24,6 +24,7 @@ resource "aws_lambda_function" "audit" {
   environment {
     variables = {
       DYNAMODB_TABLE_NAME = aws_dynamodb_table.main.name
+      EXPECTED_ACCOUNT_ID = data.aws_caller_identity.current.account_id
     }
   }
 
