@@ -11,6 +11,8 @@ from .users import table
 RESOURCE_TYPES = ("ec2_instance", "s3_bucket")
 RESOURCE_ID = re.compile(r"^[A-Za-z0-9._-]{1,255}$")
 HIDDEN = ("pk", "sk", "expires_at")
+# the audit runs daily, so no scan for this long means one was missed or failed to start
+OVERDUE_AFTER = timedelta(hours=26)
 
 
 class NotFound(Exception):
@@ -62,12 +64,14 @@ def status():
     """For the deployment status page (#38)."""
     deployment = table().get_item(Key={"pk": schema.DEPLOYMENT_PK, "sk": "CONFIG"}).get("Item")
     latest = scans(limit=1)
+    last_at = datetime.strptime(latest[0]["started_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc) if latest else None
     return {
         "account_id": account_id(),
         "region": region(),
         "deployment": clean(deployment) if deployment else None,
         "latest_scan": latest[0] if latest else None,
         "scan_state": latest[0]["status"] if latest else "no_scan",
+        "overdue": bool(last_at and datetime.now(timezone.utc) - last_at > OVERDUE_AFTER),
     }
 
 

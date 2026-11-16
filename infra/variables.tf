@@ -77,7 +77,7 @@ variable "lambda_runtime" {
 }
 
 variable "audit_schedule_expression" {
-  description = "When the audit runs (UTC)"
+  description = "When the audit runs, in UTC (default is 6:00 UTC every day)"
   type        = string
   default     = "cron(0 6 * * ? *)"
 }

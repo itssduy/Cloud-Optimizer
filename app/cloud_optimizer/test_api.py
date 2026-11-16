@@ -62,6 +62,13 @@ class ApiTests(SimpleTestCase):
         self.assertEqual(body["deployment"]["regions"], ["us-east-1"])
         self.assertNotIn("pk", body["latest_scan"])
 
+    def test_old_scan_is_overdue(self):
+        self.seed("scan_completed")
+        self.assertTrue(self.get("/api/status/").json()["overdue"])
+        recent = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.seed("scan_completed", sk=f"SCAN#{recent}#scan_new", started_at=recent)
+        self.assertFalse(self.get("/api/status/").json()["overdue"])
+
     def test_resources_and_detail(self):
         self.seed("resource_ec2", "resource_s3", "finding_ec2_idle", "action_ec2_stop")
         self.assertEqual(len(self.get("/api/resources/").json()["resources"]), 2)
