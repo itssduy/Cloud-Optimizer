@@ -1,0 +1,7 @@
+{% extends "cloud_optimizer/access.html" %}
+{% block title %}Access denied · Cloud Optimizer{% endblock %}
+{% block heading %}Access denied{% endblock %}
+{% block access_content %}
+<p class="muted">Only team administrators can manage users. Contact your administrator if you need access.</p>
+<a class="button access-action" href="{% url 'home' %}">Back to overview</a>
+{% endblock %}

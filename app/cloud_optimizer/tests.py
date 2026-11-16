@@ -50,7 +50,8 @@ class AuthTests(SimpleTestCase):
         self.make_admin()
         self.assertRedirects(self.log_in("admin@team.com", "correct-horse-9"), "/", fetch_redirect_response=False)
         self.assertEqual(self.client.get("/").status_code, 200)
-        self.client.post("/logout/")
+        signed_out = self.client.post("/logout/", follow=True)
+        self.assertContains(signed_out, "You have signed out.")
         self.assertEqual(self.client.get("/").status_code, 302)
 
     def test_wrong_password(self):
@@ -58,13 +59,15 @@ class AuthTests(SimpleTestCase):
         r = self.log_in("admin@team.com", "nope")
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "Wrong email or password")
+        self.assertContains(r, 'value="admin@team.com"')
+        self.assertNotContains(r, "nope")
         self.assertEqual(self.client.get("/").status_code, 302)
 
     def test_member_cannot_manage_users(self):
         self.make_admin()
         member = users.create_user("m@team.com", "M", "correct-horse-9")
         self.log_in("m@team.com", "correct-horse-9")
-        self.assertEqual(self.client.get("/users/").status_code, 403)
+        self.assertContains(self.client.get("/users/"), "Access denied", status_code=403)
         self.assertEqual(self.client.post(f"/users/{member['user_id']}/", {"action": "disable"}).status_code, 403)
 
     def test_admin_adds_user(self):
@@ -80,8 +83,10 @@ class AuthTests(SimpleTestCase):
         member = users.create_user("m@team.com", "M", "correct-horse-9")
         self.log_in("m@team.com", "correct-horse-9")
         users.update_user(member["user_id"], status="disabled")
-        self.assertEqual(self.client.get("/").status_code, 302)
-        self.assertEqual(self.log_in("m@team.com", "correct-horse-9").status_code, 200)
+        ended_session = self.client.get("/", follow=True)
+        self.assertRedirects(ended_session, "/login/")
+        self.assertContains(ended_session, "Your session has ended.")
+        self.assertContains(self.log_in("m@team.com", "correct-horse-9"), "Wrong email or password")
         self.assertEqual(self.client.get("/").status_code, 302)
 
     def test_password_reset_ends_old_sessions(self):

@@ -1,11 +1,16 @@
-{% extends "cloud_optimizer/base.html" %}
-{% block content %}
-<h1>Create the admin account</h1>
-<form method="post">
+{% extends "cloud_optimizer/access.html" %}
+{% block title %}Set up team access · Cloud Optimizer{% endblock %}
+{% block heading %}Create the admin account{% endblock %}
+{% block access_content %}
+<p class="muted">The first administrator can grant access to the rest of the team.</p>
+<form class="access-form" method="post">
   {% csrf_token %}
-  <input name="name" placeholder="Name">
-  <input name="email" type="email" placeholder="Email" required>
-  <input name="password" type="password" placeholder="Password" required>
-  <button>Create</button>
+  <label for="name">Name (optional)</label>
+  <input id="name" name="name" autocomplete="name">
+  <label for="email">Email</label>
+  <input id="email" name="email" type="email" autocomplete="username" required>
+  <label for="password">Password</label>
+  <input id="password" name="password" type="password" autocomplete="new-password" required>
+  <button class="button access-action" type="submit">Create admin account</button>
 </form>
 {% endblock %}

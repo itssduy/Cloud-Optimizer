@@ -1,0 +1,17 @@
+{% extends "cloud_optimizer/base.html" %}
+{% load static %}
+{% block styles %}
+<link rel="stylesheet" href="{% static 'cloud_optimizer/dashboard.css' %}">
+{% endblock %}
+{% block page %}
+<main class="access-page">
+  <section class="panel access-card" aria-labelledby="access-heading">
+    <p class="access-brand"><span class="logo" aria-hidden="true">CO</span> Cloud Optimizer</p>
+    <h1 id="access-heading">{% block heading %}{% endblock %}</h1>
+    {% for message in messages %}
+    <p class="access-message {{ message.tags }}" {% if message.tags == 'error' %}role="alert"{% else %}role="status"{% endif %}>{{ message }}</p>
+    {% endfor %}
+    {% block access_content %}{% endblock %}
+  </section>
+</main>
+{% endblock %}
