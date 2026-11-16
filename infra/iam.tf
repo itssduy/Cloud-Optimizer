@@ -27,6 +27,7 @@ data "aws_iam_policy_document" "audit_read" {
       "s3:ListAllMyBuckets",
       "s3:GetBucketLocation",
       "s3:GetLifecycleConfiguration",
+      "s3:ListBucketMultipartUploads",
       "ce:GetCostAndUsage",
     ]
     resources = ["*"]
