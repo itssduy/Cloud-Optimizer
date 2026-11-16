@@ -53,3 +53,10 @@ resource "aws_lambda_permission" "eventbridge" {
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.daily_audit.arn
 }
+
+# EventBridge calls the Lambda async. Retry once if it fails, the audit is safe to re-run.
+resource "aws_lambda_function_event_invoke_config" "audit" {
+  function_name                = aws_lambda_function.audit.function_name
+  maximum_retry_attempts       = 1
+  maximum_event_age_in_seconds = 3600
+}
