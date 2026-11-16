@@ -1,7 +1,8 @@
 from functools import wraps
 
-from django.http import HttpResponseForbidden
-from django.shortcuts import redirect
+from django.conf import settings
+from django.contrib import messages
+from django.shortcuts import redirect, render
 from django.utils.crypto import constant_time_compare, salted_hmac
 
 from . import users
@@ -42,6 +43,8 @@ def login_required(view):
     def wrapper(request, *args, **kwargs):
         request.user_info = current_user(request)
         if not request.user_info:
+            if settings.SESSION_COOKIE_NAME in request.COOKIES:
+                messages.info(request, "Your session has ended. Sign in again to continue.")
             return redirect("login")
         return view(request, *args, **kwargs)
     return wrapper
@@ -52,6 +55,6 @@ def admin_required(view):
     @wraps(view)
     def wrapper(request, *args, **kwargs):
         if request.user_info["role"] != "admin":
-            return HttpResponseForbidden("admins only")
+            return render(request, "cloud_optimizer/access_denied.html", status=403)
         return view(request, *args, **kwargs)
     return wrapper

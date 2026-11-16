@@ -96,6 +96,42 @@ td small { display: block; margin-top: 4px; color: #627085; overflow-wrap: anywh
 .empty { color: #627085; padding: 28px 12px; }
 .page-footer { display: flex; justify-content: space-between; margin-top: 22px; color: #627085; font-size: 10px; }
 
+/* Sign-in, setup, and access-denied screens. */
+.access-page {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 2rem 1rem;
+}
+.access-card {
+    width: 100%;
+    max-width: 28rem;
+    padding: 2rem;
+    border-top: 4px solid #17283c;
+}
+.access-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 1.5rem; font-weight: bold; }
+.access-brand .logo { background: #17283c; }
+.access-card h1 { margin-bottom: 0.5rem; }
+.access-form { display: grid; margin-top: 0.5rem; }
+.access-form label { margin: 1rem 0 0.25rem; font-weight: bold; }
+.access-form input {
+    width: 100%;
+    min-height: 44px;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid #8b98a8;
+    border-radius: 5px;
+    font: inherit;
+    font-size: 1rem;
+    color: inherit;
+}
+.access-form input:focus-visible { outline: 2px solid #1e5798; outline-offset: 2px; }
+.access-action { margin-top: 1.25rem; }
+button.access-action { border: 0; font: inherit; font-weight: bold; cursor: pointer; }
+button.access-action:disabled { background: #f1d8b5; cursor: wait; }
+.access-help { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #dfe5ed; }
+.access-message { margin: 1rem 0; padding: 0.65rem 0.75rem; background: #eaf0f6; border-radius: 5px; }
+.access-message.error { background: #fff1f0; color: #8a2926; }
+
 /* Smaller screens: two cards per row, then a single-column layout. */
 @media (max-width: 1100px) {
     .cards { grid-template-columns: repeat(2, 1fr); }
@@ -115,4 +151,5 @@ td small { display: block; margin-top: 4px; color: #627085; overflow-wrap: anywh
     .number { font-size: 27px; }
     .section-heading { flex-wrap: wrap; gap: 12px; }
     .page-footer { flex-direction: column; gap: 4px; }
+    .access-card { padding: 1.25rem; }
 }
