@@ -55,6 +55,23 @@ class ApiTests(SimpleTestCase):
         self.assertIsNone(body["latest_scan"])
         self.assertEqual(body["account_id"], ACCOUNT)
 
+    def test_overview_uses_saved_records_after_login(self):
+        self.seed("scan_completed", "resource_ec2", "resource_s3",
+                  "finding_ec2_idle", "finding_s3_tiering", "savings", "alert")
+        today = datetime.now(timezone.utc).date().isoformat()
+        self.seed("daily_cost", sk=f"COST#{today}", date=today)
+        page = self.get("/")
+        self.assertContains(page, "Overview")
+        self.assertContains(page, "old-staging-api")
+        self.assertContains(page, "acme-old-logs")
+        self.assertContains(page, "$4.82")
+        self.assertContains(page, "Log out")
+        self.assertNotContains(page, "Sample data")
+        self.assertNotContains(page, "Team users")
+        page = self.get("/?service=ec2")
+        self.assertContains(page, "old-staging-api")
+        self.assertNotContains(page, "acme-old-logs")
+
     def test_status_after_scan(self):
         self.seed("deployment", "scan_completed")
         body = self.get("/api/status/").json()

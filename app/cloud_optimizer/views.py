@@ -5,7 +5,7 @@ from django.http import Http404, HttpResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
-from . import auth, users
+from . import auth, dashboard, users
 
 
 def health(request):
@@ -14,7 +14,7 @@ def health(request):
 
 @auth.login_required
 def home(request):
-    return render(request, "cloud_optimizer/home.html", {"me": request.user_info})
+    return dashboard.overview(request)
 
 
 def login_view(request):

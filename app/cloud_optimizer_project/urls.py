@@ -1,9 +1,10 @@
 from django.urls import path
 
-from cloud_optimizer import actions, api, views
+from cloud_optimizer import actions, api, dashboard, views
 
 urlpatterns = [
     path('', views.home, name='home'),
+    path('preview/', dashboard.preview, name='dashboard_preview'),
     path('health/', views.health),
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
