@@ -3,8 +3,10 @@ import os
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
+from unittest.mock import patch
 
 import boto3
+from botocore.exceptions import ClientError
 from django.test import SimpleTestCase
 from moto import mock_aws
 
@@ -54,6 +56,12 @@ class ApiTests(SimpleTestCase):
         self.assertEqual(body["scan_state"], "no_scan")
         self.assertIsNone(body["latest_scan"])
         self.assertEqual(body["account_id"], ACCOUNT)
+        page = self.get("/status/")
+        self.assertContains(page, "No saved scan")
+        self.assertContains(page, "Awaiting audit report")
+        self.assertContains(page, ACCOUNT)
+        self.assertContains(page, "us-east-1")
+        self.assertNotContains(page, "View saved findings")
 
     def test_overview_uses_saved_records_after_login(self):
         self.seed("scan_completed", "resource_ec2", "resource_s3",
@@ -66,6 +74,7 @@ class ApiTests(SimpleTestCase):
         self.assertContains(page, "acme-old-logs")
         self.assertContains(page, "$4.82")
         self.assertContains(page, "Log out")
+        self.assertContains(page, 'href="/status/"')
         self.assertNotContains(page, "Sample data")
         self.assertNotContains(page, "Team users")
         page = self.get("/?service=ec2")
@@ -82,9 +91,60 @@ class ApiTests(SimpleTestCase):
     def test_old_scan_is_overdue(self):
         self.seed("scan_completed")
         self.assertTrue(self.get("/api/status/").json()["overdue"])
+        self.assertContains(self.get("/status/"), "The daily scan is overdue")
         recent = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         self.seed("scan_completed", sk=f"SCAN#{recent}#scan_new", started_at=recent)
         self.assertFalse(self.get("/api/status/").json()["overdue"])
+
+    def test_deployment_page_tracks_saved_scan(self):
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.seed("deployment")
+        for state in ("pending", "running", "completed", "partial", "failed"):
+            with self.subTest(state=state):
+                finished = state in ("completed", "partial", "failed")
+                self.seed(
+                    "scan_completed", status=state, started_at=None if state == "pending" else now,
+                    completed_at=now if finished else None,
+                )
+                page = self.get("/status/")
+                self.assertContains(page, state.capitalize() + "</span>")
+                if state in ("completed", "partial"):
+                    self.assertContains(page, "View saved findings")
+                else:
+                    self.assertNotContains(page, "View saved findings")
+                if finished:
+                    self.assertContains(page, "Finished · UTC")
+
+    def test_deployment_page_reports_permission_issues_without_raw_errors(self):
+        self.seed("scan_completed", status="partial", errors=[
+            {"service": "ec2", "message": "UnauthorizedOperation: private diagnostic"},
+        ])
+        page = self.get("/status/")
+        self.assertContains(page, "Access issue reported")
+        self.assertNotContains(page, "private diagnostic")
+
+    def test_deployment_page_requires_an_active_team_user(self):
+        user = users.list_users()[0]
+        users.update_user(user["user_id"], status="disabled")
+        with patch("cloud_optimizer.dashboard.data.status") as status:
+            self.assertRedirects(self.get("/status/"), "/login/", fetch_redirect_response=False)
+            status.assert_not_called()
+
+    def test_deployment_page_reports_configuration_and_read_failures(self):
+        with patch.dict(os.environ, AWS_ACCOUNT_ID=""):
+            page = self.get("/status/")
+            self.assertContains(page, "AWS account is missing", status_code=503)
+        error = ClientError({"Error": {"Code": "AccessDenied", "Message": "private diagnostic"}}, "Query")
+        with patch("cloud_optimizer.dashboard.data.status", side_effect=error):
+            page = self.get("/status/")
+            self.assertContains(page, "Saved status is unavailable", status_code=503)
+            self.assertNotContains(page, "private diagnostic", status_code=503)
+
+    def test_latest_scan_is_selected_within_the_configured_region(self):
+        self.seed("scan_completed")
+        self.seed("scan_completed", sk="SCAN#2026-11-07T06:00:00Z#scan_other", status="failed",
+                  regions=["eu-west-1"], started_at="2026-11-07T06:00:00Z")
+        self.assertEqual(self.get("/api/status/").json()["scan_state"], "completed")
 
     def test_resources_and_detail(self):
         self.seed("resource_ec2", "resource_s3", "finding_ec2_idle", "action_ec2_stop")
@@ -132,6 +192,9 @@ class ApiTests(SimpleTestCase):
     def test_store_down_is_503(self):
         self.table.delete()
         self.assertEqual(self.get("/api/findings/").status_code, 503)
+        page = self.get("/status/")
+        self.assertContains(page, "Saved status is unavailable", status_code=503)
+        self.assertNotContains(page, ACCOUNT, status_code=503)
 
     def test_post_not_allowed(self):
         self.assertEqual(self.client.post("/api/findings/").status_code, 405)
