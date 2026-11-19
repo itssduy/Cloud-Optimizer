@@ -39,6 +39,11 @@ data "aws_iam_policy_document" "ec2_start_stop" {
     actions   = ["ec2:DescribeInstances", "ec2:StartInstances", "ec2:StopInstances"]
     resources = ["*"]
   }
+
+  statement {
+    actions   = ["s3:GetBucketLocation", "s3:GetLifecycleConfiguration", "s3:PutLifecycleConfiguration"]
+    resources = ["*"]
+  }
 }
 
 data "aws_iam_policy_document" "dynamodb_rw" {
