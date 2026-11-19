@@ -1,0 +1,10 @@
+{% extends "cloud_optimizer/dashboard_layout.html" %}
+
+{% block title %}S3 buckets · Cloud Optimizer{% endblock %}
+{% block section_name %}S3 buckets{% endblock %}
+
+{% block dashboard_content %}
+    <h1>S3 buckets</h1>
+    <p class="notice">{{ error_message }}</p>
+    <a class="status-link" href="{% url 's3_inventory' %}">Return to S3 inventory</a>
+{% endblock %}

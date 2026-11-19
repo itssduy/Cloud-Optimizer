@@ -181,6 +181,56 @@ class ApiTests(SimpleTestCase):
         self.assertContains(page, "No open findings are saved")
         self.assertNotContains(page, "Review start")
 
+    def test_s3_inventory_filters_within_the_deployment(self):
+        self.seed("resource_s3", "finding_s3_incomplete_uploads")
+        self.seed("resource_s3", sk="RES#s3_bucket#us-east-1#empty-bucket", resource_id="empty-bucket",
+                  details={"standard_size_bytes": 0, "object_count": 0, "has_lifecycle_rules": False})
+        self.seed("resource_s3", sk="RES#s3_bucket#eu-west-1#other-region", resource_id="other-region",
+                  region="eu-west-1")
+        self.seed("resource_s3", pk="ACCT#999999999999", sk="RES#s3_bucket#us-east-1#other-account",
+                  resource_id="other-account")
+        page = self.get("/s3/")
+        self.assertContains(page, ACCOUNT)
+        self.assertContains(page, "empty-bucket")
+        self.assertContains(page, "acme-old-logs")
+        self.assertNotContains(page, "other-region")
+        self.assertNotContains(page, "other-account")
+        self.assertNotContains(self.get("/s3/?finding=open"), "empty-bucket")
+        self.assertNotContains(self.get("/s3/?finding=none"), "acme-old-logs")
+        self.assertEqual(self.get("/s3/other-region/").status_code, 404)
+        self.assertEqual(self.get("/s3/other-account/").status_code, 404)
+
+    def test_s3_missing_metrics_and_zero_usage_are_distinct(self):
+        self.seed("resource_s3", details={})
+        page = self.get("/s3/acme-old-logs/")
+        self.assertContains(page, "Unavailable")
+        self.assertNotContains(page, "<dd>0\u00a0bytes</dd>", html=True)
+        self.assertContains(page, "No open findings are saved")
+        self.seed("resource_s3", details={"standard_size_bytes": 0, "object_count": 0,
+                                        "has_lifecycle_rules": False})
+        self.assertContains(self.get("/s3/acme-old-logs/"), "<dd>0\u00a0bytes</dd>", html=True)
+
+    def test_s3_saved_rule_review_expires_with_the_finding(self):
+        self.seed("resource_s3", "scan_completed", "finding_s3_incomplete_uploads", "finding_s3_tiering")
+        page = self.get("/s3/acme-old-logs/?review=s3_incomplete_uploads")
+        self.assertContains(page, "DaysAfterInitiation")
+        self.assertContains(page, "acme-old-logs")
+        self.assertContains(page, "Applying lifecycle rules is unavailable")
+        self.assertContains(page, "observations may be stale")
+        self.assertEqual(self.client.post("/s3/acme-old-logs/", {"confirm": "yes"}).status_code, 405)
+        self.seed("finding_s3_incomplete_uploads", status="resolved")
+        self.assertEqual(self.get("/s3/acme-old-logs/?review=s3_incomplete_uploads").status_code, 404)
+        self.assertContains(self.get("/s3/acme-old-logs/?review=s3_tiering_candidate"), "INTELLIGENT_TIERING")
+        self.assertContains(self.get("/s3/acme-old-logs/"), "Savings estimate unavailable")
+
+    def test_s3_pages_require_an_active_team_user(self):
+        user = users.list_users()[0]
+        users.update_user(user["user_id"], status="disabled")
+        with patch("cloud_optimizer.s3_pages.data.status") as status:
+            self.assertRedirects(self.get("/s3/"), "/login/", fetch_redirect_response=False)
+            self.assertRedirects(self.get("/s3/acme-old-logs/"), "/login/", fetch_redirect_response=False)
+            status.assert_not_called()
+
     def test_resources_and_detail(self):
         self.seed("resource_ec2", "resource_s3", "finding_ec2_idle", "action_ec2_stop")
         self.assertEqual(len(self.get("/api/resources/").json()["resources"]), 2)
@@ -231,6 +281,7 @@ class ApiTests(SimpleTestCase):
         self.assertContains(page, "Saved status is unavailable", status_code=503)
         self.assertNotContains(page, ACCOUNT, status_code=503)
         self.assertContains(self.get("/ec2/"), "EC2 data is unavailable", status_code=503)
+        self.assertContains(self.get("/s3/"), "Saved bucket data is unavailable", status_code=503)
 
     def test_post_not_allowed(self):
         self.assertEqual(self.client.post("/api/findings/").status_code, 405)

@@ -121,6 +121,15 @@ td small { display: block; margin-top: 4px; color: #627085; overflow-wrap: anywh
 .ec2-action { max-width: 45rem; }
 .ec2-result { display: inline-block; }
 
+/* S3 bucket names and saved lifecycle proposals. */
+.s3-name { min-width: 0; overflow-wrap: anywhere; }
+.s3-inventory table { min-width: 34rem; table-layout: fixed; }
+.s3-inventory th:first-child { width: 42%; }
+.s3-finding { margin-top: 16px; padding-top: 16px; border-top: 1px solid #dfe5ed; }
+.s3-finding h3 { margin: 0 0 6px; font-size: 14px; }
+.s3-finding p + p { margin-top: 6px; }
+.s3-rule { max-width: 100%; overflow-x: auto; padding: 16px; border-radius: 5px; background: #f4f6f9; font-size: 12px; }
+
 /* Sign-in, setup, and access-denied screens. */
 .access-page {
     min-height: 100vh;

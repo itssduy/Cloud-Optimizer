@@ -1,0 +1,52 @@
+{% extends "cloud_optimizer/dashboard_layout.html" %}
+
+{% block title %}S3 buckets · Cloud Optimizer{% endblock %}
+{% block section_name %}S3 buckets{% endblock %}
+
+{% block dashboard_content %}
+    <h1>S3 buckets</h1>
+    <section class="scan-strip" aria-label="Deployment scope">
+        <div><span class="label">AWS account</span><strong>{{ account_id }}</strong></div>
+        <div><span class="label">Scan region</span><strong>{{ region }}</strong></div>
+    </section>
+    {% include "cloud_optimizer/s3_scan_notice.html" %}
+    <section class="panel ec2-panel">
+        <div class="section-heading">
+            <h2>Saved buckets</h2>
+            {% if has_inventory %}
+                <form method="get" class="ec2-controls">
+                    <label>Findings
+                        <select name="finding">
+                            <option value="">All buckets</option>
+                            <option value="open" {% if finding_filter == "open" %}selected{% endif %}>Has open findings</option>
+                            <option value="none" {% if finding_filter == "none" %}selected{% endif %}>No open findings</option>
+                        </select>
+                    </label>
+                    <button class="button" type="submit">Apply filter</button>
+                </form>
+            {% endif %}
+        </div>
+        {% if rows %}
+            <div class="table-scroll s3-inventory" role="region" aria-label="S3 bucket table" tabindex="0">
+                <table>
+                    <caption class="muted">{{ rows|length }} bucket{{ rows|length|pluralize }} shown</caption>
+                    <thead><tr><th scope="col">Bucket</th><th scope="col">S3 Standard</th><th scope="col">Objects</th><th scope="col">Findings</th></tr></thead>
+                    <tbody>
+                        {% for row in rows %}
+                            <tr>
+                                <td><a class="s3-name" href="{% url 's3_detail' row.bucket.resource_id %}">{{ row.bucket.resource_id }}</a></td>
+                                <td>{% if row.bucket.details.standard_size_bytes != None %}{{ row.bucket.details.standard_size_bytes|filesizeformat }}{% else %}Unavailable{% endif %}</td>
+                                <td>{% if row.bucket.details.object_count != None %}{{ row.bucket.details.object_count }}{% else %}Unavailable{% endif %}</td>
+                                <td>{% if row.has_findings %}Open findings{% else %}None open{% endif %}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% elif has_inventory %}
+            <p class="empty">No buckets match this filter. <a href="{% url 's3_inventory' %}">Clear filter</a></p>
+        {% else %}
+            <p class="empty">No buckets are saved for this region.</p>
+        {% endif %}
+    </section>
+{% endblock %}
