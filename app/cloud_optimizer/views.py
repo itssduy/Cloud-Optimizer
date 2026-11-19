@@ -20,18 +20,26 @@ def home(request):
 def login_view(request):
     if not users.has_users():
         return redirect("setup")
+
+    email = ""
     if request.method == "POST":
-        user = users.authenticate(request.POST.get("email", ""), request.POST.get("password", ""))
-        if user:
-            auth.login(request, user)
-            return redirect("home")
-        messages.error(request, "Wrong email or password.")
-    return render(request, "cloud_optimizer/login.html")
+        email = request.POST.get("email", "").strip()
+        password = request.POST.get("password", "")
+        if email and password:
+            user = users.authenticate(email, password)
+            if user:
+                auth.login(request, user)
+                return redirect("home")
+            messages.error(request, "Wrong email or password.")
+        else:
+            messages.error(request, "Enter your email and password.")
+    return render(request, "cloud_optimizer/login.html", {"email": email})
 
 
 @require_POST
 def logout_view(request):
     auth.logout(request)
+    messages.info(request, "You have signed out.")
     return redirect("login")
 
 
