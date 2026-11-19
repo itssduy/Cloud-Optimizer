@@ -106,6 +106,8 @@
                                 <strong>
                                     {% if row.service == "EC2" and row.has_resource and not sample %}
                                         <a href="{% url 'ec2_detail' row.finding.resource_id %}">{{ row.name }}</a>
+                                    {% elif row.service == "S3" and row.has_resource and not sample %}
+                                        <a href="{% url 's3_detail' row.finding.resource_id %}">{{ row.name }}</a>
                                     {% else %}
                                         {{ row.name }}
                                     {% endif %}

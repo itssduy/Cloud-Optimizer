@@ -1,0 +1,71 @@
+{% extends "cloud_optimizer/dashboard_layout.html" %}
+{% load tz %}
+
+{% block title %}{{ bucket.resource_id }} · Cloud Optimizer{% endblock %}
+{% block section_name %}S3 buckets{% endblock %}
+
+{% block dashboard_content %}
+    <a class="status-link" href="{% url 's3_inventory' %}">← S3 inventory</a>
+    <h1 class="s3-name">{{ bucket.resource_id }}</h1>
+    <section class="scan-strip" aria-label="Bucket scope">
+        <div><span class="label">AWS account</span><strong>{{ account_id }}</strong></div>
+        <div><span class="label">Region</span><strong>{{ region }}</strong></div>
+        <div><span class="label">Observed at · UTC</span><strong>{{ observed_at|utc|date:"M j, Y · H:i"|default:"Unavailable" }}</strong></div>
+    </section>
+    {% include "cloud_optimizer/s3_scan_notice.html" %}
+    <div class="columns">
+        <section class="panel">
+            <h2>Saved storage usage</h2>
+            <dl class="status-details">
+                <div><dt class="label">S3 Standard</dt><dd>{% if bucket.details.standard_size_bytes != None %}{{ bucket.details.standard_size_bytes|filesizeformat }}{% else %}Unavailable{% endif %}</dd></div>
+                <div><dt class="label">Objects · all storage classes</dt><dd>{% if bucket.details.object_count != None %}{{ bucket.details.object_count }}{% else %}Unavailable{% endif %}</dd></div>
+                <div><dt class="label">Standard metric at · UTC</dt><dd>{{ metrics_at|utc|date:"M j, Y · H:i"|default:"Unavailable" }}</dd></div>
+                <div><dt class="label">Bucket cost</dt><dd>Unavailable</dd></div>
+            </dl>
+            {% if bucket.last_check.outcome == "insufficient_data" %}
+                <p class="notice">The last audit had insufficient storage metrics.</p>
+            {% endif %}
+        </section>
+        <section class="panel">
+            <h2>Lifecycle configuration</h2>
+            <p class="status-note">
+                {% if bucket.details.has_lifecycle_rules == True %}Lifecycle rules were present at the last observation.
+                {% elif bucket.details.has_lifecycle_rules == False %}No lifecycle rules were present at the last observation.
+                {% else %}Lifecycle information is unavailable.{% endif %}
+            </p>
+            <p class="status-note muted">Applying lifecycle rules is unavailable for this installation.</p>
+        </section>
+    </div>
+
+    <section class="panel ec2-panel">
+        <h2>Open findings</h2>
+        {% for row in findings %}
+            <article class="s3-finding">
+                <h3>{{ row.title }}</h3>
+                <p>{{ row.finding.reason }}</p>
+                {% if row.finding.recommendation.text %}<p>{{ row.finding.recommendation.text }}</p>{% endif %}
+                <dl class="status-details">
+                    {% if row.finding.rule == "s3_incomplete_uploads" %}
+                        <div><dt class="label">Older incomplete uploads</dt><dd>{{ row.finding.evidence.stale_upload_count|default_if_none:"Unavailable" }}</dd></div>
+                        <div><dt class="label">Age threshold</dt><dd>{{ row.finding.evidence.age_threshold_days|default_if_none:"Unavailable" }} days</dd></div>
+                        <div><dt class="label">Oldest initiated · UTC</dt><dd>{{ row.oldest_at|utc|date:"M j, Y · H:i"|default:"Unavailable" }}</dd></div>
+                        <div><dt class="label">Checked at · UTC</dt><dd>{{ row.checked_at|utc|date:"M j, Y · H:i"|default:"Unavailable" }}</dd></div>
+                    {% elif row.finding.rule == "s3_tiering_candidate" %}
+                        <div><dt class="label">Access pattern</dt><dd>{{ row.finding.evidence.access_pattern|default:"Unavailable"|capfirst }}</dd></div>
+                        <div><dt class="label">Average object size</dt><dd>{% if row.finding.evidence.avg_object_bytes != None %}{{ row.finding.evidence.avg_object_bytes|filesizeformat }}{% else %}Unavailable{% endif %}</dd></div>
+                        <div><dt class="label">Storage metric at · UTC</dt><dd>{{ row.metrics_at|utc|date:"M j, Y · H:i"|default:"Unavailable" }}</dd></div>
+                    {% endif %}
+                    <div><dt class="label">Finding observed · UTC</dt><dd>{{ row.detected_at|utc|date:"M j, Y · H:i"|default:"Unavailable" }}</dd></div>
+                </dl>
+                <p class="status-note muted">
+                    {% if row.finding.estimated_monthly_savings and row.finding.estimated_monthly_savings.amount != None %}
+                        {{ row.finding.estimated_monthly_savings.currency }} {{ row.finding.estimated_monthly_savings.amount|floatformat:2 }} / month estimated savings
+                    {% else %}Savings estimate unavailable{% endif %}
+                </p>
+                {% if row.reviewable %}<a class="status-link" href="?review={{ row.finding.rule|urlencode }}">Review proposed rule</a>{% endif %}
+            </article>
+        {% empty %}
+            <p class="status-note">No open findings are saved for this bucket.</p>
+        {% endfor %}
+    </section>
+{% endblock %}

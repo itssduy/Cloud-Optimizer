@@ -1,12 +1,14 @@
 from django.urls import path
 
-from cloud_optimizer import actions, api, dashboard, ec2_pages, views
+from cloud_optimizer import actions, api, dashboard, ec2_pages, s3_pages, views
 
 urlpatterns = [
     path('', views.home, name='home'),
     path('status/', dashboard.deployment_status, name='deployment_status'),
     path('ec2/', ec2_pages.page, name='ec2_inventory'),
     path('ec2/<str:instance_id>/', ec2_pages.page, name='ec2_detail'),
+    path('s3/', s3_pages.page, name='s3_inventory'),
+    path('s3/<str:bucket_name>/', s3_pages.page, name='s3_detail'),
     path('preview/', dashboard.preview, name='dashboard_preview'),
     path('health/', views.health),
     path('login/', views.login_view, name='login'),

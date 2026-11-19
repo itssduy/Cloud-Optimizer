@@ -24,7 +24,13 @@
                    {% if request.resolver_match.url_name == 'ec2_inventory' %}class="active" aria-current="page"
                    {% elif request.resolver_match.url_name == 'ec2_detail' %}class="active" aria-current="location"{% endif %}>EC2 instances</a>
             {% endif %}
-            <a href="{{ overview_url }}?service=s3#findings">S3 buckets</a>
+            {% if sample %}
+                <a href="{{ overview_url }}?service=s3#findings">S3 buckets</a>
+            {% else %}
+                <a href="{% url 's3_inventory' %}"
+                   {% if request.resolver_match.url_name == 's3_inventory' %}class="active" aria-current="page"
+                   {% elif request.resolver_match.url_name == 's3_detail' %}class="active" aria-current="location"{% endif %}>S3 buckets</a>
+            {% endif %}
             <a href="{{ overview_url }}?service=all#findings">Findings</a>
             <a href="{{ overview_url }}#spending">Spending</a>
             <a href="{{ overview_url }}#alerts">Alerts</a>

@@ -1,0 +1,29 @@
+{% extends "cloud_optimizer/dashboard_layout.html" %}
+{% load tz %}
+
+{% block title %}Review S3 rule · Cloud Optimizer{% endblock %}
+{% block section_name %}S3 buckets{% endblock %}
+
+{% block dashboard_content %}
+    <a class="status-link" href="{% url 's3_detail' bucket.resource_id %}">← Return to bucket</a>
+    <h1>Review proposed rule</h1>
+    <section class="scan-strip" aria-label="Proposed change target">
+        <div class="s3-name"><span class="label">Bucket</span><strong>{{ bucket.resource_id }}</strong></div>
+        <div><span class="label">AWS account</span><strong>{{ account_id }}</strong></div>
+        <div><span class="label">Region</span><strong>{{ region }}</strong></div>
+    </section>
+    {% include "cloud_optimizer/s3_scan_notice.html" %}
+    <section class="panel">
+        <h2>{{ title }}</h2>
+        <p class="status-note">{{ finding.recommendation.text }}</p>
+        <p class="status-note muted">Saved proposal observed {{ detected_at|utc|date:"M j, Y · H:i"|default:"at an unavailable time" }} UTC.</p>
+        {% if finding.rule == "s3_incomplete_uploads" %}
+            <p class="status-note">The age setting determines when eligible incomplete multipart uploads can be cleaned up.</p>
+        {% elif finding.rule == "s3_tiering_candidate" %}
+            <p class="status-note">Intelligent-Tiering includes monitoring charges for eligible objects. Access patterns and achieved savings require further measurement.</p>
+        {% endif %}
+        <pre class="s3-rule" tabindex="0" aria-label="Saved proposed lifecycle rule">{{ rule_json }}</pre>
+        <p class="notice">Applying lifecycle rules is unavailable for this installation.</p>
+        <a class="status-link" href="{% url 's3_detail' bucket.resource_id %}">Return to bucket</a>
+    </section>
+{% endblock %}
