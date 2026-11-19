@@ -21,4 +21,9 @@ Cloud Optimizer is a senior project that helps teams find cloud resource waste a
 
 - `/app` - frontand and backend django application and API
 - `/infra` - Terraform and infrastructure configuration
+- `/lambda` - the daily audit Lambda and its tests
 - `/poc` - proof-of-concept code
+
+## Deploying
+
+See [DEPLOY.md](DEPLOY.md) for deploying, first login, scans, backups, and cleanup.
