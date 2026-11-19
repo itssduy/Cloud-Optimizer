@@ -151,7 +151,7 @@ def check_action(request_id, instance_id=None):
                         or target["resource_type"] != "ec2_instance"):
         return error("not_found", 404)
 
-    if item["request_status"] == "sent" and item["outcome"] == "unknown":
+    if item["action_type"] in ("ec2_start", "ec2_stop") and item["request_status"] == "sent" and item["outcome"] == "unknown":
         try:
             instance = describe(item["target"]["resource_id"])
         except (BotoCoreError, ClientError):
