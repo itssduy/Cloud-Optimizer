@@ -17,7 +17,13 @@
         <p class="nav-label">WORKSPACE</p>
         <nav aria-label="Main navigation">
             <a href="{{ overview_url }}" {% if sample or request.resolver_match.url_name == 'home' %}class="active" aria-current="page"{% endif %}>Overview</a>
-            <a href="{{ overview_url }}?service=ec2#findings">EC2 instances</a>
+            {% if sample %}
+                <a href="{{ overview_url }}?service=ec2#findings">EC2 instances</a>
+            {% else %}
+                <a href="{% url 'ec2_inventory' %}"
+                   {% if request.resolver_match.url_name == 'ec2_inventory' %}class="active" aria-current="page"
+                   {% elif request.resolver_match.url_name == 'ec2_detail' %}class="active" aria-current="location"{% endif %}>EC2 instances</a>
+            {% endif %}
             <a href="{{ overview_url }}?service=s3#findings">S3 buckets</a>
             <a href="{{ overview_url }}?service=all#findings">Findings</a>
             <a href="{{ overview_url }}#spending">Spending</a>

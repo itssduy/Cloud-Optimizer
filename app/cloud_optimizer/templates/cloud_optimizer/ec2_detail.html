@@ -1,0 +1,87 @@
+{% extends "cloud_optimizer/dashboard_layout.html" %}
+{% load tz %}
+
+{% block title %}{{ instance.name|default:instance.resource_id }} · Cloud Optimizer{% endblock %}
+{% block section_name %}EC2 instances{% endblock %}
+
+{% block dashboard_content %}
+    <a class="status-link" href="{% url 'ec2_inventory' %}">← EC2 inventory</a>
+    <div class="page-heading">
+        <div class="ec2-name">
+            <h1>{{ instance.name|default:instance.resource_id }}</h1>
+            <p class="muted">{{ instance.resource_id }}</p>
+        </div>
+        {% if available_action %}
+            <a class="button" href="?review={{ available_action }}">Review {{ available_action }}</a>
+        {% endif %}
+    </div>
+    {% if review_error %}<p class="notice">{{ review_error }}</p>{% endif %}
+    {% for note in scan_notes %}<p class="notice">{{ note }}</p>{% endfor %}
+
+    <div class="columns">
+        <section class="panel">
+            <h2>Instance details</h2>
+            <dl class="status-details">
+                <div><dt class="label">AWS account</dt><dd>{{ account_id }}</dd></div>
+                <div><dt class="label">Region</dt><dd>{{ region }}</dd></div>
+                <div><dt class="label">Current EC2 state</dt><dd>{{ live_state|capfirst|default:"Unavailable" }}</dd></div>
+                <div><dt class="label">Saved audit state</dt><dd>{{ instance.state|capfirst }}</dd></div>
+                <div><dt class="label">Instance type</dt><dd>{{ instance.details.instance_type|default:"Unavailable" }}</dd></div>
+                <div><dt class="label">Observed at · UTC</dt><dd>{{ observed_at|utc|date:"M j, Y · H:i"|default:"Unavailable" }}</dd></div>
+            </dl>
+            {% if action_note %}<p class="status-note">{{ action_note }}</p>{% endif %}
+        </section>
+
+        <section class="panel">
+            <h2>Saved CPU evidence</h2>
+            {% if evidence %}
+                <dl class="status-details">
+                    <div><dt class="label">Average CPU</dt><dd>{% if evidence.average != None %}{{ evidence.average }}%{% else %}Unavailable{% endif %}</dd></div>
+                    <div><dt class="label">Hourly samples</dt><dd>{{ evidence.datapoints }} / {{ evidence.expected_datapoints }}</dd></div>
+                    <div><dt class="label">From · UTC</dt><dd>{{ window_start|utc|date:"M j, Y · H:i"|default:"Unavailable" }}</dd></div>
+                    <div><dt class="label">To · UTC</dt><dd>{{ window_end|utc|date:"M j, Y · H:i"|default:"Unavailable" }}</dd></div>
+                </dl>
+            {% else %}
+                <p class="status-note">No CPU summary is saved for this instance.</p>
+            {% endif %}
+            {% if instance.last_check.outcome == "insufficient_data" %}
+                <p class="notice">The latest check had insufficient CPU data{% if instance.last_check.note %} ({{ instance.last_check.note }}){% endif %}.</p>
+            {% endif %}
+        </section>
+    </div>
+
+    <section class="panel ec2-panel">
+        <h2>Open findings</h2>
+        {% for finding in findings %}
+            <article class="ec2-finding">
+                {% if finding.rule == "ec2_idle_cpu" %}<h3>Low CPU utilization</h3>{% endif %}
+                <p>{{ finding.reason }}</p>
+                {% if finding.recommendation.text %}<p>{{ finding.recommendation.text }}</p>{% endif %}
+                <p class="muted">
+                    {% if finding.estimated_monthly_savings and finding.estimated_monthly_savings.amount != None %}
+                        {{ finding.estimated_monthly_savings.currency }} {{ finding.estimated_monthly_savings.amount|floatformat:2 }} / month estimated savings
+                    {% else %}
+                        Savings estimate unavailable
+                    {% endif %}
+                </p>
+            </article>
+        {% empty %}
+            <p class="status-note">No open findings are saved for this instance.</p>
+        {% endfor %}
+    </section>
+
+    {% if recent_actions %}
+        <section class="panel ec2-panel" id="recent-actions">
+            <h2>Recent instance requests</h2>
+            <ul class="ec2-requests">
+                {% for item in recent_actions %}
+                    <li>
+                        {{ item.label }} · {{ item.requested_at|utc|date:"M j, Y · H:i" }} UTC
+                        <span class="badge">{{ item.status }}</span>
+                        {% if item.checkable %}<a href="?request={{ item.request_id }}">View outcome</a>{% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        </section>
+    {% endif %}
+{% endblock %}

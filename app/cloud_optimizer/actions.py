@@ -23,7 +23,7 @@ def ec2():
 
 
 def error(code, status, **extra):
-    return JsonResponse({"error": code, **extra}, status=status)
+    return {"error": code, **extra}, status
 
 
 def describe(instance_id):
@@ -54,12 +54,19 @@ def request_action(request, instance_id, action):
     """Start or stop one instance. Needs confirm=yes and a unique request_id from the page."""
     user = auth.current_user(request)
     if not user:
-        return error("not_logged_in", 401)
+        return JsonResponse({"error": "not_logged_in"}, status=401)
+    result, status = submit_action(
+        user, instance_id, action, request.POST.get("confirm"), request.POST.get("request_id", "")
+    )
+    return JsonResponse(result, status=status)
+
+
+def submit_action(user, instance_id, action, confirm, request_id):
+    """Run the same confirmed action from the API or the signed-in instance page."""
     if action not in ACTIONS or not INSTANCE_ID.match(instance_id):
         return error("not_found", 404)
-    if request.POST.get("confirm") != "yes":
+    if confirm != "yes":
         return error("not_confirmed", 400)
-    request_id = request.POST.get("request_id", "")
     if not REQUEST_ID.match(request_id):
         return error("bad_request_id", 400)
 
@@ -118,14 +125,19 @@ def request_action(request, instance_id, action):
         item["request_error"] = getattr(e, "response", {}).get("Error", {}).get("Code", str(e))
         item["outcome"] = "failed"
     t.put_item(Item=item)
-    return JsonResponse({"action": data.clean(item)}, status=202 if item["request_status"] == "sent" else 502)
+    return {"action": data.clean(item)}, 202 if item["request_status"] == "sent" else 502
 
 
 @require_GET
 def action_status(request, request_id):
     """Checks the instance again and marks the action verified once it reaches the target state."""
     if not auth.current_user(request):
-        return error("not_logged_in", 401)
+        return JsonResponse({"error": "not_logged_in"}, status=401)
+    result, status = check_action(request_id)
+    return JsonResponse(result, status=status)
+
+
+def check_action(request_id, instance_id=None):
     if not REQUEST_ID.match(request_id):
         return error("not_found", 404)
     t = table()
@@ -134,16 +146,20 @@ def action_status(request, request_id):
     item = t.get_item(Key={"pk": pk, "sk": ref["action_sk"]}).get("Item") if ref else None
     if not item:
         return error("not_found", 404)
+    target = item["target"]
+    if instance_id and (target["resource_id"] != instance_id or target["region"] != data.region()
+                        or target["resource_type"] != "ec2_instance"):
+        return error("not_found", 404)
 
     if item["request_status"] == "sent" and item["outcome"] == "unknown":
         try:
             instance = describe(item["target"]["resource_id"])
         except (BotoCoreError, ClientError):
-            return JsonResponse({"action": data.clean(item)})
+            return {"action": data.clean(item)}, 200
         state = instance["State"]["Name"] if instance else "missing"
         item["observed_state"] = state
         item["outcome_checked_at"] = now()
         if state == item["change"]["after"]["state"]:
             item["outcome"] = "verified"
         t.put_item(Item=item)
-    return JsonResponse({"action": data.clean(item)})
+    return {"action": data.clean(item)}, 200
