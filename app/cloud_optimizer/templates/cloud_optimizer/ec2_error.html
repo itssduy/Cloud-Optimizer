@@ -1,0 +1,10 @@
+{% extends "cloud_optimizer/dashboard_layout.html" %}
+
+{% block title %}EC2 instances · Cloud Optimizer{% endblock %}
+{% block section_name %}EC2 instances{% endblock %}
+
+{% block dashboard_content %}
+    <h1>EC2 instances</h1>
+    <p class="notice">{{ error_message }}</p>
+    <a class="status-link" href="{% url 'ec2_inventory' %}">Return to EC2 inventory</a>
+{% endblock %}

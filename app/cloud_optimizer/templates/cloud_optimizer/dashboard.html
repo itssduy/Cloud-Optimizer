@@ -102,7 +102,16 @@
                 <tbody>
                     {% for row in rows %}
                         <tr>
-                            <td><strong>{{ row.name }}</strong><small>{{ row.finding.resource_id }} · {{ row.finding.region }}</small></td>
+                            <td>
+                                <strong>
+                                    {% if row.service == "EC2" and row.has_resource and not sample %}
+                                        <a href="{% url 'ec2_detail' row.finding.resource_id %}">{{ row.name }}</a>
+                                    {% else %}
+                                        {{ row.name }}
+                                    {% endif %}
+                                </strong>
+                                <small>{{ row.finding.resource_id }} · {{ row.finding.region }}</small>
+                            </td>
                             <td><span class="service-tag {{ row.service|lower }}">{{ row.service }}</span></td>
                             <td class="finding-text">{{ row.finding.reason|default:"Evidence unavailable" }}</td>
                             <td>{% if row.finding.estimated_monthly_savings %}<strong>${{ row.finding.estimated_monthly_savings.amount|floatformat:2 }}</strong><small>Estimated</small>{% else %}<span class="muted">Unavailable</span>{% endif %}</td>
