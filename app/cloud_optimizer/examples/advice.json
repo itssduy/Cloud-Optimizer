@@ -1,0 +1,50 @@
+{
+  "finding_ec2_idle": {
+    "observed": "Average CPU was 1.2% over 7 days (168 of 168 hourly datapoints).",
+    "why": "Running instances are billed every hour, even when they do very little.",
+    "next_step": "Check with whoever owns it. If it's not needed, stop it, or move it to a smaller type.",
+    "limitations": [
+      "Low CPU doesn't prove it's unused. It might be busy on memory, network, or rare jobs.",
+      "Stopping it keeps the EBS volumes, and those are still billed."
+    ],
+    "action": "ec2_stop",
+    "benefit": {
+      "monthly": {
+        "amount": 30.37,
+        "currency": "USD",
+        "estimated": true
+      },
+      "note": null,
+      "estimated": true
+    }
+  },
+  "finding_s3_incomplete_uploads": {
+    "observed": "3 incomplete uploads older than 7 days, the oldest started 2026-09-02.",
+    "why": "Parts of unfinished uploads are stored and billed, but don't show up as objects.",
+    "next_step": "Add a lifecycle rule that aborts incomplete uploads after 7 days.",
+    "limitations": [
+      "We don't know how much data the parts hold, so there's no savings number."
+    ],
+    "charges": "No extra charge.",
+    "action": "s3_apply_lifecycle",
+    "benefit": {
+      "monthly": null,
+      "note": "no estimate yet"
+    }
+  },
+  "finding_s3_tiering": {
+    "observed": "383.7 GiB across 48,210 objects in S3 Standard, with no transition rules.",
+    "why": "Standard is the most expensive storage class for data that's rarely read.",
+    "next_step": "Move objects into Intelligent-Tiering, which moves them to cheaper tiers when they aren't read.",
+    "limitations": [
+      "We can't see how often objects are read, so the benefit is unknown.",
+      "Objects under 128 KiB aren't moved."
+    ],
+    "charges": "Small monitoring fee per object, plus a one-time transition request charge.",
+    "action": "s3_apply_lifecycle",
+    "benefit": {
+      "monthly": null,
+      "note": "no estimate yet"
+    }
+  }
+}
