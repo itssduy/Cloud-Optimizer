@@ -10,7 +10,7 @@ body {
 }
 a { color: #1e5798; text-decoration: none; }
 a:hover { text-decoration: underline; }
-a:focus-visible, button:focus-visible, [tabindex]:focus-visible { outline: 3px solid #ed9b32; outline-offset: 4px; }
+a:focus-visible, button:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 3px solid #ed9b32; outline-offset: 4px; }
 h1, h2, p { margin: 0; }
 h1 { font-size: 30px; letter-spacing: -1px; }
 h2 { font-size: 15px; font-weight: 600; }
@@ -102,6 +102,24 @@ td small { display: block; margin-top: 4px; color: #627085; overflow-wrap: anywh
 .status-note { margin-top: 12px; }
 .status-warning { background: #fff0d6; color: #705124; }
 .status-link { display: inline-block; min-height: 44px; margin-top: 8px; padding: 12px 0; font-weight: bold; }
+
+/* EC2 inventory, instance details and confirmation. */
+.ec2-panel { margin-top: 16px; }
+.ec2-name { min-width: 0; overflow-wrap: anywhere; }
+.ec2-inventory table { min-width: 34rem; table-layout: fixed; }
+.ec2-inventory th:first-child { width: 42%; }
+.ec2-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.ec2-controls label { color: #57667a; font-size: 12px; }
+.ec2-controls select { display: block; min-height: 44px; margin-top: 4px; padding: 6px 10px; border: 1px solid #8b98a8; border-radius: 5px; background: white; color: #192b40; font: inherit; }
+.ec2-controls button { border: 0; font: inherit; font-weight: bold; cursor: pointer; }
+.ec2-controls .status-link { margin-top: 0; }
+.ec2-finding { margin-top: 12px; }
+.ec2-finding h3 { margin: 0 0 4px; font-size: 14px; }
+.ec2-finding p + p { margin-top: 6px; }
+.ec2-requests { padding-left: 20px; }
+.ec2-requests li + li { margin-top: 8px; }
+.ec2-action { max-width: 45rem; }
+.ec2-result { display: inline-block; }
 
 /* Sign-in, setup, and access-denied screens. */
 .access-page {

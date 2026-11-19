@@ -146,6 +146,41 @@ class ApiTests(SimpleTestCase):
                   regions=["eu-west-1"], started_at="2026-11-07T06:00:00Z")
         self.assertEqual(self.get("/api/status/").json()["scan_state"], "completed")
 
+    def test_ec2_inventory_filters_the_configured_scope(self):
+        self.seed("resource_ec2", "resource_s3", "finding_ec2_idle")
+        self.seed("resource_ec2", sk="RES#ec2_instance#us-east-1#i-00000001", resource_id="i-00000001",
+                  state="stopped", name="stopped-worker")
+        self.seed("resource_ec2", sk="RES#ec2_instance#eu-west-1#i-00000002", resource_id="i-00000002",
+                  region="eu-west-1", name="other-region")
+        self.seed("resource_ec2", pk="ACCT#999999999999", name="other-account")
+        page = self.get("/ec2/")
+        self.assertContains(page, ACCOUNT)
+        self.assertContains(page, "old-staging-api")
+        self.assertContains(page, "stopped-worker")
+        self.assertNotContains(page, "other-region")
+        self.assertNotContains(page, "other-account")
+        page = self.get("/ec2/?state=stopped&finding=none")
+        self.assertContains(page, "stopped-worker")
+        self.assertNotContains(page, "old-staging-api")
+        self.assertContains(self.get("/ec2/?state=stopped&finding=open"), "No instances match")
+
+    def test_ec2_detail_separates_saved_evidence_from_live_state(self):
+        self.seed("resource_ec2", "scan_completed", "finding_ec2_idle")
+        path = "/ec2/i-0abc123def4567890/"
+        with patch("cloud_optimizer.actions.describe", return_value={"State": {"Name": "stopped"}}):
+            page = self.get(path)
+            self.assertContains(page, "Review start")
+            self.assertContains(page, "1.2%")
+            self.assertContains(page, "168 / 168")
+            self.assertContains(page, "30.37")
+            self.assertContains(page, "observations may be stale")
+        self.seed("finding_ec2_idle", status="resolved")
+        self.seed("resource_ec2", last_check={"outcome": "insufficient_data", "note": "only 4 hourly samples"})
+        page = self.get(path)
+        self.assertContains(page, "insufficient CPU data")
+        self.assertContains(page, "No open findings are saved")
+        self.assertNotContains(page, "Review start")
+
     def test_resources_and_detail(self):
         self.seed("resource_ec2", "resource_s3", "finding_ec2_idle", "action_ec2_stop")
         self.assertEqual(len(self.get("/api/resources/").json()["resources"]), 2)
@@ -195,6 +230,7 @@ class ApiTests(SimpleTestCase):
         page = self.get("/status/")
         self.assertContains(page, "Saved status is unavailable", status_code=503)
         self.assertNotContains(page, ACCOUNT, status_code=503)
+        self.assertContains(self.get("/ec2/"), "EC2 data is unavailable", status_code=503)
 
     def test_post_not_allowed(self):
         self.assertEqual(self.client.post("/api/findings/").status_code, 405)

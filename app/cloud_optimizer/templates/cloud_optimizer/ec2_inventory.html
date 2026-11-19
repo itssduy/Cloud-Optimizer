@@ -1,0 +1,66 @@
+{% extends "cloud_optimizer/dashboard_layout.html" %}
+
+{% block title %}EC2 instances · Cloud Optimizer{% endblock %}
+{% block section_name %}EC2 instances{% endblock %}
+
+{% block dashboard_content %}
+    <h1>EC2 instances</h1>
+    <section class="scan-strip" aria-label="Deployment scope">
+        <div><span class="label">AWS account</span><strong>{{ account_id }}</strong></div>
+        <div><span class="label">Scan region</span><strong>{{ region }}</strong></div>
+    </section>
+    {% for note in scan_notes %}<p class="notice">{{ note }}</p>{% endfor %}
+
+    <section class="panel ec2-panel">
+        <div class="section-heading">
+            <h2>Saved inventory</h2>
+            {% if has_inventory %}
+                <form method="get" class="ec2-controls">
+                    <label>Saved state
+                        <select name="state">
+                            <option value="">Any state</option>
+                            {% for state in states %}
+                                <option value="{{ state }}" {% if state == state_filter %}selected{% endif %}>{{ state|capfirst }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label>Findings
+                        <select name="finding">
+                            <option value="">All instances</option>
+                            <option value="open" {% if finding_filter == "open" %}selected{% endif %}>Has open findings</option>
+                            <option value="none" {% if finding_filter == "none" %}selected{% endif %}>No open findings</option>
+                        </select>
+                    </label>
+                    <button class="button" type="submit">Apply filters</button>
+                </form>
+            {% endif %}
+        </div>
+        {% if rows %}
+            <div class="table-scroll ec2-inventory" role="region" aria-label="EC2 inventory table" tabindex="0">
+                <table>
+                    <caption class="muted">{{ rows|length }} instance{{ rows|length|pluralize }} shown</caption>
+                    <thead>
+                        <tr><th scope="col">Instance</th><th scope="col">Type</th><th scope="col">Saved state</th><th scope="col">Findings</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                            <tr>
+                                <td>
+                                    <a class="ec2-name" href="{% url 'ec2_detail' row.instance.resource_id %}">{{ row.instance.name|default:row.instance.resource_id }}</a>
+                                    <small>{{ row.instance.resource_id }}</small>
+                                </td>
+                                <td>{{ row.instance.details.instance_type|default:"Unavailable" }}</td>
+                                <td><span class="badge">{{ row.instance.state|capfirst }}</span></td>
+                                <td>{% if row.has_findings %}<strong>Open findings</strong>{% else %}None open{% endif %}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% elif has_inventory %}
+            <p class="empty">No instances match these filters. <a href="{% url 'ec2_inventory' %}">Clear filters</a></p>
+        {% else %}
+            <p class="empty">No instances are saved for this region.</p>
+        {% endif %}
+    </section>
+{% endblock %}

@@ -159,6 +159,7 @@ def render_dashboard(request, context, resources, findings, alerts):
         if service == "all" or label.lower() == service:
             rows.append({
                 "name": names.get(key) or finding["resource_id"],
+                "has_resource": key in names,
                 "service": label,
                 "finding": finding,
             })
