@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.core.cache import cache
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.http import Http404, HttpResponse
@@ -17,6 +18,10 @@ def home(request):
     return dashboard.overview(request)
 
 
+MAX_LOGIN_FAILURES = 5
+LOCKOUT_SECONDS = 15 * 60
+
+
 def login_view(request):
     if not users.has_users():
         return redirect("setup")
@@ -25,11 +30,17 @@ def login_view(request):
     if request.method == "POST":
         email = request.POST.get("email", "").strip()
         password = request.POST.get("password", "")
+        key = f"login-failures:{request.META.get('REMOTE_ADDR')}:{email.lower()}"
+        if cache.get(key, 0) >= MAX_LOGIN_FAILURES:
+            messages.error(request, "Too many failed tries. Wait 15 minutes and try again.")
+            return render(request, "cloud_optimizer/login.html", {"email": email}, status=429)
         if email and password:
             user = users.authenticate(email, password)
             if user:
+                cache.delete(key)
                 auth.login(request, user)
                 return redirect("home")
+            cache.set(key, cache.get(key, 0) + 1, LOCKOUT_SECONDS)
             messages.error(request, "Wrong email or password.")
         else:
             messages.error(request, "Enter your email and password.")

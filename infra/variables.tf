@@ -52,6 +52,12 @@ variable "allowed_hosts" {
   default     = ["*"]
 }
 
+variable "app_allowed_cidrs" {
+  description = "IP ranges allowed to reach the app on port 8000. Set to your team's IPs, e.g. [\"203.0.113.4/32\"]"
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
 variable "log_retention_days" {
   description = "Days to keep logs"
   type        = number

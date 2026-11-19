@@ -10,6 +10,8 @@ from . import users
 @mock_aws
 class AuthTests(SimpleTestCase):
     def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
         os.environ["DYNAMODB_TABLE_NAME"] = "test"
         os.environ["AWS_REGION"] = "us-east-1"
         os.environ.pop("DYNAMODB_ENDPOINT_URL", None)
@@ -96,6 +98,21 @@ class AuthTests(SimpleTestCase):
         users.set_password(member["user_id"], "brand-new-pass-3")
         self.assertEqual(self.client.get("/").status_code, 302)
         self.assertIsNotNone(users.authenticate("m@team.com", "brand-new-pass-3"))
+
+    def test_login_lockout(self):
+        self.make_admin()
+        for _ in range(5):
+            self.log_in("admin@team.com", "wrong")
+        r = self.log_in("admin@team.com", "correct-horse-9")
+        self.assertEqual(r.status_code, 429)
+        self.assertEqual(self.client.get("/").status_code, 302)
+
+    def test_csrf_is_enforced(self):
+        from django.test import Client
+        self.make_admin()
+        client = Client(enforce_csrf_checks=True)
+        self.assertEqual(client.post("/login/", {"email": "admin@team.com", "password": "correct-horse-9"}).status_code, 403)
+        self.assertEqual(client.post("/api/ec2/i-0123456789abcdef0/stop/", {"confirm": "yes"}).status_code, 403)
 
     def test_admin_cannot_disable_self(self):
         admin = self.make_admin()
