@@ -28,7 +28,7 @@ resource "aws_ecs_task_definition" "app" {
 
   container_definitions = jsonencode([{
     name      = "app"
-    image     = "${aws_ecr_repository.app.repository_url}:${var.app_image_tag}"
+    image     = local.app_image
     essential = true
 
     portMappings = [{
@@ -42,10 +42,15 @@ resource "aws_ecs_task_definition" "app" {
       { name = "DYNAMODB_TABLE_NAME", value = aws_dynamodb_table.main.name },
       { name = "AWS_REGION", value = var.aws_region },
       { name = "AWS_ACCOUNT_ID", value = data.aws_caller_identity.current.account_id },
+      { name = "SITE_URL", value = local.app_url },
+      { name = "COGNITO_DOMAIN", value = local.cognito_domain },
+      { name = "COGNITO_USER_POOL_ID", value = aws_cognito_user_pool.main.id },
+      { name = "COGNITO_CLIENT_ID", value = aws_cognito_user_pool_client.app.id },
     ]
 
     secrets = [
       { name = "DJANGO_SECRET_KEY", valueFrom = aws_secretsmanager_secret.django_secret_key.arn },
+      { name = "COGNITO_CLIENT_SECRET", valueFrom = aws_secretsmanager_secret.cognito_client_secret.arn },
     ]
 
     logConfiguration = {
@@ -57,6 +62,8 @@ resource "aws_ecs_task_definition" "app" {
       }
     }
   }])
+
+  depends_on = [terraform_data.app_image]
 }
 
 resource "aws_ecs_service" "app" {
@@ -65,6 +72,14 @@ resource "aws_ecs_service" "app" {
   task_definition = aws_ecs_task_definition.app.arn
   desired_count   = var.app_desired_count
   launch_type     = "FARGATE"
+
+  health_check_grace_period_seconds = 60
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.app.arn
+    container_name   = "app"
+    container_port   = var.container_port
+  }
 
   network_configuration {
     subnets          = data.aws_subnets.default.ids
@@ -76,4 +91,6 @@ resource "aws_ecs_service" "app" {
     enable   = true
     rollback = true
   }
+
+  depends_on = [aws_lb_listener.http]
 }

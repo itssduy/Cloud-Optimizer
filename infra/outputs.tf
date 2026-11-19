@@ -41,3 +41,19 @@ output "dynamodb_table_arn" {
 output "audit_lambda_name" {
   value = aws_lambda_function.audit.function_name
 }
+
+output "app_url" {
+  value = local.app_url
+}
+
+output "cognito_user_pool_id" {
+  value = aws_cognito_user_pool.main.id
+}
+
+output "cognito_client_id" {
+  value = aws_cognito_user_pool_client.app.id
+}
+
+output "cognito_domain" {
+  value = local.cognito_domain
+}

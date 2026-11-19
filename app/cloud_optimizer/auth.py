@@ -2,21 +2,14 @@ from functools import wraps
 
 from django.conf import settings
 from django.contrib import messages
-from django.shortcuts import redirect, render
-from django.utils.crypto import constant_time_compare, salted_hmac
+from django.shortcuts import redirect
 
 from . import users
-
-
-# changes when the password changes, so resetting a password logs out old sessions
-def _session_hash(user):
-    return salted_hmac("cloud_optimizer.session", user["password_hash"]).hexdigest()
 
 
 def login(request, user):
     request.session.cycle_key()
     request.session["user_id"] = user["user_id"]
-    request.session["auth"] = _session_hash(user)
 
 
 def logout(request):
@@ -29,9 +22,7 @@ def current_user(request):
         user_id = request.session.get("user_id")
         if user_id:
             user = users.get_user(user_id)
-            ok = (user and user["status"] == "active"
-                  and constant_time_compare(request.session.get("auth", ""), _session_hash(user)))
-            if not ok:
+            if not user or user.get("status") != "active":
                 request.session.flush()
                 user = None
         request._user = user
@@ -46,15 +37,5 @@ def login_required(view):
             if settings.SESSION_COOKIE_NAME in request.COOKIES:
                 messages.info(request, "Your session has ended. Sign in again to continue.")
             return redirect("login")
-        return view(request, *args, **kwargs)
-    return wrapper
-
-
-def admin_required(view):
-    @login_required
-    @wraps(view)
-    def wrapper(request, *args, **kwargs):
-        if request.user_info["role"] != "admin":
-            return render(request, "cloud_optimizer/access_denied.html", status=403)
         return view(request, *args, **kwargs)
     return wrapper

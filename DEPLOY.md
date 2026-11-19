@@ -15,37 +15,33 @@ Everything goes in `us-east-1` by default. Change `aws_region` in `infra/terrafo
 
 ```bash
 cd infra
+cp terraform.tfvars.example terraform.tfvars   # optional, defaults are fine
 terraform init
-terraform apply            # creates ECR, DynamoDB, ECS, the audit Lambda, IAM roles, etc.
-
-cd ../app
-./push.sh                  # builds the image and pushes it to ECR
-
-cd ../infra
-echo 'app_desired_count = 1' > terraform.tfvars
-terraform apply            # starts the app
+terraform apply
 ```
+
+That's it. Terraform builds the Docker image, pushes it to ECR, and starts the app. When it finishes it prints `app_url`, something like `https://d1234abcd.cloudfront.net`.
 
 Terraform state is kept locally in `infra/terraform.tfstate`. Only one person should run `apply` against the same account. See `backend.tf.example` if you want shared state in S3.
 
-There's no load balancer, so the app is reached on the task's public IP, port 8000. To find it:
+## Giving people access
+
+Nobody can sign in until you add them. Logins are handled by Cognito, which Terraform created:
 
 ```bash
-TASK=$(aws ecs list-tasks --cluster cloud-optimizer-dev --service-name cloud-optimizer-dev-app --query 'taskArns[0]' --output text)
-ENI=$(aws ecs describe-tasks --cluster cloud-optimizer-dev --tasks $TASK --query "tasks[0].attachments[0].details[?name=='networkInterfaceId'].value" --output text)
-aws ec2 describe-network-interfaces --network-interface-ids $ENI --query 'NetworkInterfaces[0].Association.PublicIp' --output text
+POOL=$(terraform output -raw cognito_user_pool_id)
+aws cognito-idp admin-create-user --user-pool-id $POOL --username someone@company.com
 ```
 
-The IP changes every time the app redeploys. `http://<ip>:8000/health/` should return `ok`.
+They get an email with a temporary password, sign in at `app_url`, and pick a new password. To remove someone:
 
-## First login
+```bash
+aws cognito-idp admin-disable-user --user-pool-id $POOL --username someone@company.com
+```
 
-Go to `http://<ip>:8000/setup/` right away and create the admin account. That page only works until the first account exists, so do it before sharing the URL.
+Anyone who can sign in can use everything, including stopping instances and applying S3 rules.
 
-After that, admins add teammates on the Users page with a temporary password. Admins can disable people, change roles, and reset passwords. There's no email, so a forgotten password is reset by an admin.
-
-- `member` can see everything and start/stop instances or apply S3 rules
-- `admin` can also manage users
+To use your company's login (Okta, Entra ID, Google Workspace) instead, create an OIDC app there with the redirect URL `<cognito_domain>/oauth2/idpresponse`, then set `oidc_issuer`, `oidc_client_id`, and `oidc_client_secret` in `terraform.tfvars` and run `terraform apply`. The login page will show a button for it.
 
 ## Scans
 
@@ -70,11 +66,7 @@ What the scan can and can't tell you:
 
 ## Updating the app
 
-```bash
-cd app && ./push.sh
-```
-
-This pushes a new image and restarts the app.
+Run `terraform apply` again. It rebuilds the image only if the app code changed, and redeploys.
 
 ## Backups
 
@@ -97,8 +89,7 @@ Then point the app and Lambda at the restored table (change the table name in Te
 
 ## Known limits
 
-- HTTP only, no HTTPS, because there's no load balancer yet. Don't reuse real passwords.
-- Port 8000 is open to the internet. Only people with an account can log in, but anyone can reach the login page.
+- The app is public on its CloudFront URL. Only people added to Cognito can sign in, but anyone can see the sign-in page.
 - One account and one region per deployment.
 - Only EC2 and S3 for now.
 
@@ -113,4 +104,4 @@ This deletes everything Cloud Optimizer created, including the table with all it
 
 Lifecycle rules applied through the app stay on those buckets after cleanup. They're named `cloud-optimizer-*` if you want to remove them by hand.
 
-To just pause scans without deleting anything, set `enable_audit_schedule = false` in `terraform.tfvars` and run `terraform apply`. Setting `app_desired_count = 0` stops the app and most of the cost.
+To just pause scans without deleting anything, set `enable_audit_schedule = false` in `terraform.tfvars` and run `terraform apply`. Setting `app_desired_count = 0` stops the app. The load balancer still costs about $17/month until you destroy it.

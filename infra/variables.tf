@@ -22,16 +22,10 @@ variable "container_port" {
   default     = 8000
 }
 
-variable "app_image_tag" {
-  description = "Image tag to deploy"
-  type        = string
-  default     = "latest"
-}
-
 variable "app_desired_count" {
-  description = "Number of app tasks, leave at 0 until an image is pushed"
+  description = "Number of app tasks, set to 0 to stop the app"
   type        = number
-  default     = 0
+  default     = 1
 }
 
 variable "app_cpu" {
@@ -86,4 +80,30 @@ variable "enable_audit_schedule" {
   description = "Turn the daily audit on/off"
   type        = bool
   default     = true
+}
+
+# Optional corporate login. Leave oidc_issuer empty to use Cognito users only.
+variable "oidc_provider_name" {
+  description = "Name shown on the login page, e.g. Okta"
+  type        = string
+  default     = "Corporate"
+}
+
+variable "oidc_issuer" {
+  description = "Issuer URL of the company's OIDC provider, e.g. https://company.okta.com"
+  type        = string
+  default     = ""
+}
+
+variable "oidc_client_id" {
+  description = "Client ID from the company's OIDC provider"
+  type        = string
+  default     = ""
+}
+
+variable "oidc_client_secret" {
+  description = "Client secret from the company's OIDC provider"
+  type        = string
+  default     = ""
+  sensitive   = true
 }

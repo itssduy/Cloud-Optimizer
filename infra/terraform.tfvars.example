@@ -1,6 +1,10 @@
-environment                     = "dev"
-aws_region                      = "us-east-1"
-app_desired_count               = 0 # change to 1 after pushing an image
-app_image_tag                   = "latest"
-dynamodb_point_in_time_recovery = true
-enable_audit_schedule           = true
+aws_region = "us-east-1"
+
+# set to 0 to stop the app and most of the cost
+app_desired_count = 1
+
+# optional: sign in with your company's login instead of Cognito users
+# oidc_provider_name = "Okta"
+# oidc_issuer        = "https://yourcompany.okta.com"
+# oidc_client_id     = "..."
+# oidc_client_secret = "..."
