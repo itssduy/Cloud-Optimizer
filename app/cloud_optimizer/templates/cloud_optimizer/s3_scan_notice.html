@@ -1,0 +1,7 @@
+{% if not scan %}
+    <p class="notice">No audit is saved for this region yet.</p>
+{% elif scan.status == "partial" or scan.status == "failed" %}
+    <p class="notice">The latest audit did not finish all checks. Saved bucket details may be from an earlier scan.</p>
+{% endif %}
+{% if overdue %}<p class="notice">The daily audit is overdue. Saved bucket observations may be stale.</p>{% endif %}
+{% if older_observation %}<p class="notice">This bucket's observation is from an earlier audit.</p>{% endif %}
