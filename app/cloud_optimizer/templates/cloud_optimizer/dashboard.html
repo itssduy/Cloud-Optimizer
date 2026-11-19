@@ -1,163 +1,118 @@
-{% load static %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Overview · Cloud Optimizer</title>
-    <link rel="stylesheet" href="{% static 'cloud_optimizer/dashboard.css' %}">
-</head>
-<body>
-    <a class="skip-link" href="#main">Skip to dashboard</a>
+{% extends "cloud_optimizer/dashboard_layout.html" %}
 
-    <!-- Sidebar: links jump to sections on this first dashboard page. -->
-    <aside class="sidebar">
-        <a class="brand" href="{{ overview_url }}"><span class="logo">CO</span> Cloud Optimizer</a>
-        <p class="nav-label">WORKSPACE</p>
-        <nav aria-label="Main navigation">
-            <a class="active" href="{{ overview_url }}" aria-current="page">Overview</a>
-            <a href="?service=ec2#findings">EC2 instances</a>
-            <a href="?service=s3#findings">S3 buckets</a>
-            <a href="?service=all#findings">Findings</a>
-            <a href="#spending">Spending</a>
-            <a href="#alerts">Alerts</a>
-            <span class="disabled">Activity <small>Later</small></span>
-            <a href="#scan">Deployment status</a>
-            {% if me.role == "admin" %}<a href="{% url 'users' %}">Team users</a>{% endif %}
-        </nav>
-        <div class="sidebar-footer">EC2 &amp; S3 · AWS</div>
-    </aside>
+{% block dashboard_content %}
+    <div class="page-heading">
+        <div><p class="eyebrow">AWS RESOURCE OPTIMIZATION</p><h1>Overview</h1></div>
+        <a class="button" href="#findings">Review findings <span aria-hidden="true">↓</span></a>
+    </div>
+    {% if sample %}<p class="notice">Local preview using EC2 and S3 example records.</p>{% endif %}
 
-    <main id="main">
-        <header class="topbar">
-            <span>Workspace <span class="muted">/ Overview</span></span>
-            {% if sample %}
-                <span class="badge">Sample data</span>
-            {% elif me %}
-                <form class="account" method="post" action="{% url 'logout' %}">
-                    {% csrf_token %}
-                    <span>{{ me.email }}</span>
-                    <button type="submit">Log out</button>
-                </form>
+    <!-- Deployment context stays visible above the summary cards. -->
+    <section class="scan-strip" id="scan" aria-label="Deployment and scan status">
+        <div><span class="label">AWS account</span><strong>{{ account_id|default:"Unavailable" }}</strong></div>
+        <div><span class="label">Region</span><strong>{{ region|default:"Unavailable" }}</strong></div>
+        <div><span class="label">Resources scanned</span><strong>{% if scan.status == 'completed' %}{{ scan.resource_count|default_if_none:"—" }}{% else %}—{% endif %}</strong></div>
+        <div><span class="label">Latest scan finished · UTC</span><strong>{{ scan_time|date:"M j, Y · H:i"|default:"—" }}</strong></div>
+        {% if scan %}<span class="badge">{{ scan.status|capfirst }}</span>{% endif %}
+    </section>
+    {% if data_error %}
+        <p class="notice">{{ data_error }}</p>
+    {% elif not scan %}
+        <p class="notice">No scans yet. Findings will appear after the first audit.</p>
+    {% elif scan.status == "failed" %}
+        <p class="notice">The latest scan failed. Saved findings may be from earlier scans.</p>
+    {% elif scan.status == "partial" %}
+        <p class="notice">The latest scan is incomplete. Saved findings may be from earlier scans.</p>
+    {% endif %}
+    {% if overdue %}<p class="notice">The daily scan is overdue. Resource state may have changed.</p>{% endif %}
+    {% if scan.insufficient_data_count %}<p class="notice">{{ scan.insufficient_data_count }} resource check{{ scan.insufficient_data_count|pluralize }} had insufficient data.</p>{% endif %}
+
+    <!-- Four summary cards. Unknown amounts are not displayed as zero. -->
+    <section class="cards" aria-label="Summary">
+        <article class="card">
+            <h2>Daily spending</h2>
+            {% if spending and spending.total.amount != None %}
+                <p class="number">${{ spending.total.amount|floatformat:2 }}</p>
+                <p class="muted">{{ spending.date|date:"M j, Y" }} · {{ spending.total.currency }}{% if spending.total.estimated %} · estimated{% endif %}</p>
+            {% else %}
+                <p class="number">—</p><p class="muted">Spending unavailable</p>
             {% endif %}
-        </header>
-        <div class="page">
-            <div class="page-heading">
-                <div><p class="eyebrow">AWS RESOURCE OPTIMIZATION</p><h1>Overview</h1></div>
-                <a class="button" href="#findings">Review findings <span aria-hidden="true">↓</span></a>
-            </div>
-            {% if sample %}<p class="notice">Local preview using EC2 and S3 example records.</p>{% endif %}
-
-            <!-- Deployment context stays visible above the summary cards. -->
-            <section class="scan-strip" id="scan" aria-label="Deployment and scan status">
-                <div><span class="label">AWS account</span><strong>{{ account_id|default:"Unavailable" }}</strong></div>
-                <div><span class="label">Region</span><strong>{{ region|default:"Unavailable" }}</strong></div>
-                <div><span class="label">Resources scanned</span><strong>{% if scan.status == 'completed' %}{{ scan.resource_count|default_if_none:"—" }}{% else %}—{% endif %}</strong></div>
-                <div><span class="label">Latest scan finished · UTC</span><strong>{{ scan_time|date:"M j, Y · H:i"|default:"—" }}</strong></div>
-                {% if scan %}<span class="badge">{{ scan.status|capfirst }}</span>{% endif %}
-            </section>
-            {% if data_error %}
-                <p class="notice">{{ data_error }}</p>
-            {% elif not scan %}
-                <p class="notice">No scans yet. Findings will appear after the first audit.</p>
-            {% elif scan.status == "failed" %}
-                <p class="notice">The latest scan failed. Saved findings may be from earlier scans.</p>
-            {% elif scan.status == "partial" %}
-                <p class="notice">The latest scan is incomplete. Saved findings may be from earlier scans.</p>
+        </article>
+        <article class="card">
+            <h2>Potential savings <span class="muted">/ month</span></h2>
+            {% if savings and savings.total_monthly.amount != None %}
+                <p class="number">${{ savings.total_monthly.amount|floatformat:2 }}</p>
+                <p class="muted">{{ savings.total_monthly.currency }} estimate · {{ savings.missing_estimate_count }} finding{{ savings.missing_estimate_count|pluralize }} unpriced</p>
+            {% else %}
+                <p class="number">—</p><p class="muted">Savings unavailable</p>
             {% endif %}
-            {% if overdue %}<p class="notice">The daily scan is overdue. Resource state may have changed.</p>{% endif %}
-            {% if scan.insufficient_data_count %}<p class="notice">{{ scan.insufficient_data_count }} resource check{{ scan.insufficient_data_count|pluralize }} had insufficient data.</p>{% endif %}
+        </article>
+        <article class="card">
+            <h2>Open findings</h2>
+            <p class="number">{% if scan.status == 'completed' or finding_count %}{{ finding_count|default_if_none:"—" }}{% else %}—{% endif %}</p>
+            <p class="muted">Across EC2 and S3</p>
+        </article>
+        <article class="card">
+            <h2>Spending alerts</h2>
+            <p class="number">{% if spending or alert %}{{ alert_count }}{% else %}—{% endif %}</p>
+            <p class="muted">{% if alert %}Above the spending baseline{% elif spending %}No open alerts saved{% else %}Alert data unavailable{% endif %}</p>
+        </article>
+    </section>
 
-            <!-- Four summary cards. Unknown amounts are not displayed as zero. -->
-            <section class="cards" aria-label="Summary">
-                <article class="card">
-                    <h2>Daily spending</h2>
-                    {% if spending and spending.total.amount != None %}
-                        <p class="number">${{ spending.total.amount|floatformat:2 }}</p>
-                        <p class="muted">{{ spending.date|date:"M j, Y" }} · {{ spending.total.currency }}{% if spending.total.estimated %} · estimated{% endif %}</p>
-                    {% else %}
-                        <p class="number">—</p><p class="muted">Spending unavailable</p>
-                    {% endif %}
-                </article>
-                <article class="card">
-                    <h2>Potential savings <span class="muted">/ month</span></h2>
-                    {% if savings and savings.total_monthly.amount != None %}
-                        <p class="number">${{ savings.total_monthly.amount|floatformat:2 }}</p>
-                        <p class="muted">{{ savings.total_monthly.currency }} estimate · {{ savings.missing_estimate_count }} finding{{ savings.missing_estimate_count|pluralize }} unpriced</p>
-                    {% else %}
-                        <p class="number">—</p><p class="muted">Savings unavailable</p>
-                    {% endif %}
-                </article>
-                <article class="card">
-                    <h2>Open findings</h2>
-                    <p class="number">{% if scan.status == 'completed' or finding_count %}{{ finding_count|default_if_none:"—" }}{% else %}—{% endif %}</p>
-                    <p class="muted">Across EC2 and S3</p>
-                </article>
-                <article class="card">
-                    <h2>Spending alerts</h2>
-                    <p class="number">{% if spending or alert %}{{ alert_count }}{% else %}—{% endif %}</p>
-                    <p class="muted">{% if alert %}Above the spending baseline{% elif spending %}No open alerts saved{% else %}Alert data unavailable{% endif %}</p>
-                </article>
-            </section>
+    <div class="columns">
+        <!-- The bars show costs by service for the latest billing day. -->
+        <section class="panel spending" id="spending">
+            <div class="section-heading"><h2>Spending by service</h2><span class="muted">{% if spending %}{{ spending.date|date:"M j, Y" }}{% endif %}</span></div>
+            <p class="muted">{% if spending.total.estimated %}Estimated {% endif %}daily AWS spend</p>
+            {% for cost in service_costs %}
+                <div class="cost-label"><span>{{ cost.name }}</span><strong>{% if cost.amount != None %}${{ cost.amount|floatformat:2 }}{% else %}—{% endif %}</strong></div>
+                <div class="bar-track"><div class="bar" style="width: {{ cost.percent }}%"></div></div>
+            {% empty %}
+                <p class="empty">Spending data is unavailable.</p>
+            {% endfor %}
+            {% if spending %}<p class="footnote">AWS Cost Explorer · {{ spending.total.currency }}</p>{% endif %}
+        </section>
+        <section class="panel alert-panel" id="alerts">
+            <div class="section-heading"><h2>Spending alert</h2>{% if alert %}<span class="alert-icon" aria-hidden="true">!</span>{% endif %}</div>
+            {% if alert %}
+                <p class="alert-title">Above the usual daily spend</p>
+                <p>{{ alert.explanation }}</p>
+                <p class="muted">${{ alert.actual.amount|floatformat:2 }} {% if alert.actual.estimated %}estimated{% else %}recorded{% endif %} vs ${{ alert.expected.amount|floatformat:2 }} expected · {{ alert.date|date:"M j, Y" }}</p>
+                <a href="#spending">See spending breakdown <span aria-hidden="true">→</span></a>
+            {% else %}
+                <p class="empty">{% if spending %}No open alerts saved.{% else %}Alert data is unavailable.{% endif %}</p>
+            {% endif %}
+        </section>
+    </div>
 
-            <div class="columns">
-                <!-- The bars show costs by service for the latest billing day. -->
-                <section class="panel spending" id="spending">
-                    <div class="section-heading"><h2>Spending by service</h2><span class="muted">{% if spending %}{{ spending.date|date:"M j, Y" }}{% endif %}</span></div>
-                    <p class="muted">{% if spending.total.estimated %}Estimated {% endif %}daily AWS spend</p>
-                    {% for cost in service_costs %}
-                        <div class="cost-label"><span>{{ cost.name }}</span><strong>{% if cost.amount != None %}${{ cost.amount|floatformat:2 }}{% else %}—{% endif %}</strong></div>
-                        <div class="bar-track"><div class="bar" style="width: {{ cost.percent }}%"></div></div>
-                    {% empty %}
-                        <p class="empty">Spending data is unavailable.</p>
-                    {% endfor %}
-                    {% if spending %}<p class="footnote">AWS Cost Explorer · {{ spending.total.currency }}</p>{% endif %}
-                </section>
-                <section class="panel alert-panel" id="alerts">
-                    <div class="section-heading"><h2>Spending alert</h2>{% if alert %}<span class="alert-icon" aria-hidden="true">!</span>{% endif %}</div>
-                    {% if alert %}
-                        <p class="alert-title">Above the usual daily spend</p>
-                        <p>{{ alert.explanation }}</p>
-                        <p class="muted">${{ alert.actual.amount|floatformat:2 }} {% if alert.actual.estimated %}estimated{% else %}recorded{% endif %} vs ${{ alert.expected.amount|floatformat:2 }} expected · {{ alert.date|date:"M j, Y" }}</p>
-                        <a href="#spending">See spending breakdown <span aria-hidden="true">→</span></a>
-                    {% else %}
-                        <p class="empty">{% if spending %}No open alerts saved.{% else %}Alert data is unavailable.{% endif %}</p>
-                    {% endif %}
-                </section>
-            </div>
-
-            <!-- Filters reload this page; they do not start a scan or change AWS. -->
-            <section class="panel" id="findings">
-                <div class="section-heading">
-                    <div><h2>Resources needing attention</h2><p class="muted">Inspect the evidence before deciding on a change.</p></div>
-                    <nav class="filters" aria-label="Filter findings">
-                        <a href="?service=all#findings" {% if service == 'all' %}aria-current="true"{% endif %}>All</a>
-                        <a href="?service=ec2#findings" {% if service == 'ec2' %}aria-current="true"{% endif %}>EC2</a>
-                        <a href="?service=s3#findings" {% if service == 's3' %}aria-current="true"{% endif %}>S3</a>
-                    </nav>
-                </div>
-                <div class="table-scroll" role="region" aria-label="Resource findings" tabindex="0">
-                    <table>
-                        <caption class="muted">{{ rows|length }} {% if sample %}sample {% endif %}finding{{ rows|length|pluralize }} shown</caption>
-                        <thead><tr><th scope="col">Resource</th><th scope="col">Service</th><th scope="col">Finding</th><th scope="col">Potential / month</th></tr></thead>
-                        <tbody>
-                            {% for row in rows %}
-                                <tr>
-                                    <td><strong>{{ row.name }}</strong><small>{{ row.finding.resource_id }} · {{ row.finding.region }}</small></td>
-                                    <td><span class="service-tag {{ row.service|lower }}">{{ row.service }}</span></td>
-                                    <td class="finding-text">{{ row.finding.reason|default:"Evidence unavailable" }}</td>
-                                    <td>{% if row.finding.estimated_monthly_savings %}<strong>${{ row.finding.estimated_monthly_savings.amount|floatformat:2 }}</strong><small>Estimated</small>{% else %}<span class="muted">Unavailable</span>{% endif %}</td>
-                                </tr>
-                            {% empty %}
-                                <tr><td colspan="4" class="empty">{% if scan.status == 'completed' and finding_count == 0 %}No open findings in the saved results.{% else %}No findings are available for this view.{% endif %}</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                <p class="footnote">Potential savings are estimates, not achieved savings. Stopping EC2 does not remove storage costs.</p>
-            </section>
-            <footer class="page-footer">Cloud Optimizer <span>{% if sample %}Local sample preview{% else %}Internal team workspace{% endif %}</span></footer>
+    <!-- Filters reload this page; they do not start a scan or change AWS. -->
+    <section class="panel" id="findings">
+        <div class="section-heading">
+            <div><h2>Resources needing attention</h2><p class="muted">Inspect the evidence before deciding on a change.</p></div>
+            <nav class="filters" aria-label="Filter findings">
+                <a href="?service=all#findings" {% if service == 'all' %}aria-current="true"{% endif %}>All</a>
+                <a href="?service=ec2#findings" {% if service == 'ec2' %}aria-current="true"{% endif %}>EC2</a>
+                <a href="?service=s3#findings" {% if service == 's3' %}aria-current="true"{% endif %}>S3</a>
+            </nav>
         </div>
-    </main>
-</body>
-</html>
+        <div class="table-scroll" role="region" aria-label="Resource findings" tabindex="0">
+            <table>
+                <caption class="muted">{{ rows|length }} {% if sample %}sample {% endif %}finding{{ rows|length|pluralize }} shown</caption>
+                <thead><tr><th scope="col">Resource</th><th scope="col">Service</th><th scope="col">Finding</th><th scope="col">Potential / month</th></tr></thead>
+                <tbody>
+                    {% for row in rows %}
+                        <tr>
+                            <td><strong>{{ row.name }}</strong><small>{{ row.finding.resource_id }} · {{ row.finding.region }}</small></td>
+                            <td><span class="service-tag {{ row.service|lower }}">{{ row.service }}</span></td>
+                            <td class="finding-text">{{ row.finding.reason|default:"Evidence unavailable" }}</td>
+                            <td>{% if row.finding.estimated_monthly_savings %}<strong>${{ row.finding.estimated_monthly_savings.amount|floatformat:2 }}</strong><small>Estimated</small>{% else %}<span class="muted">Unavailable</span>{% endif %}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4" class="empty">{% if scan.status == 'completed' and finding_count == 0 %}No open findings in the saved results.{% else %}No findings are available for this view.{% endif %}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="footnote">Potential savings are estimates, not achieved savings. Stopping EC2 does not remove storage costs.</p>
+    </section>
+{% endblock %}

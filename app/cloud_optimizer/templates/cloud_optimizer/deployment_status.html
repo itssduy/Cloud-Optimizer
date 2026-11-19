@@ -1,0 +1,73 @@
+{% extends "cloud_optimizer/dashboard_layout.html" %}
+{% load tz %}
+
+{% block title %}Deployment status · Cloud Optimizer{% endblock %}
+{% block section_name %}Deployment status{% endblock %}
+
+{% block dashboard_content %}
+    <div class="page-heading">
+        <h1>Deployment status</h1>
+        <a class="button" href="{% url 'deployment_status' %}">Reload status</a>
+    </div>
+
+    {% if status_error %}
+        <p class="notice">{{ status_error }}</p>
+    {% else %}
+        <div class="columns">
+            <section class="panel">
+                <div class="section-heading">
+                    <h2>Latest scan</h2>
+                    <span class="badge {% if scan_state == 'failed' or scan_state == 'partial' or overdue %}status-warning{% endif %}">{{ scan_label }}</span>
+                </div>
+                <p class="status-note">{{ scan_message }}</p>
+                {% if overdue %}
+                    <p class="notice">The daily scan is overdue. Ask the deployment operator to check the audit schedule and logs.</p>
+                {% endif %}
+
+                {% if scan %}
+                    {% timezone "UTC" %}
+                        <dl class="status-details">
+                            <div>
+                                <dt class="label">Started · UTC</dt>
+                                <dd>{% if started_at %}<time datetime="{{ started_at|date:'c' }}">{{ started_at|date:"M j, Y · H:i" }}</time>{% else %}—{% endif %}</dd>
+                            </div>
+                            <div>
+                                <dt class="label">Finished · UTC</dt>
+                                <dd>{% if completed_at %}<time datetime="{{ completed_at|date:'c' }}">{{ completed_at|date:"M j, Y · H:i" }}</time>{% else %}—{% endif %}</dd>
+                            </div>
+                            {% if scan_state == "completed" or scan_state == "partial" %}
+                                <div><dt class="label">Resources recorded</dt><dd>{{ scan.resource_count|default_if_none:"—" }}</dd></div>
+                                <div><dt class="label">Findings from this scan</dt><dd>{{ scan.finding_count|default_if_none:"—" }}</dd></div>
+                            {% endif %}
+                        </dl>
+                    {% endtimezone %}
+                {% endif %}
+                {% if scan_state == "completed" or scan_state == "partial" %}
+                    <a class="status-link" href="{% url 'home' %}#findings">View saved findings <span aria-hidden="true">→</span></a>
+                {% endif %}
+            </section>
+
+            <section class="panel">
+                <h2>AWS deployment</h2>
+                <dl class="status-details">
+                    <div><dt class="label">AWS account</dt><dd>{{ account_id }}</dd></div>
+                    <div><dt class="label">Scan regions</dt><dd>{{ regions|join:", " }}</dd></div>
+                    <div>
+                        <dt class="label">Reported readiness</dt>
+                        <dd>
+                            {% if permission_issue %}Access issue reported
+                            {% elif scan_state == "failed" or readiness == "scan_failed" %}Scan failed
+                            {% elif scan_state == "partial" %}Checks incomplete
+                            {% elif readiness == "ready" %}Ready
+                            {% else %}Awaiting audit report{% endif %}
+                        </dd>
+                    </div>
+                </dl>
+                {% if permission_issue %}
+                    <p class="notice">The latest scan reported denied access. Ask the deployment operator to check the audit Lambda's IAM role.</p>
+                {% endif %}
+                <p class="status-note muted">Terraform configures AWS access for this installation.</p>
+            </section>
+        </div>
+    {% endif %}
+{% endblock %}

@@ -48,11 +48,16 @@ def _query(prefix, newest_first=False, limit=None, start=None):
     if limit:
         kwargs["Limit"] = limit
     items = []
+    current_region = region()
     while True:
         page = table().query(**kwargs)
-        items.extend(page["Items"])
+        for item in page["Items"]:
+            # Scan records list their regions, while resource records use a single region.
+            item_regions = item.get("regions", [item.get("region", current_region)])
+            if current_region in item_regions:
+                items.append(clean(item))
         if (limit and len(items) >= limit) or "LastEvaluatedKey" not in page:
-            return [clean(i) for i in items[:limit] if i.get("region", region()) == region()]
+            return items[:limit]
         kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
 
 
@@ -65,13 +70,17 @@ def status():
     """For the deployment status page (#38)."""
     deployment = table().get_item(Key={"pk": schema.DEPLOYMENT_PK, "sk": "CONFIG"}).get("Item")
     latest = scans(limit=1)
-    last_at = datetime.strptime(latest[0]["started_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc) if latest else None
+    scan = latest[0] if latest else {}
+    started_at = scan.get("started_at")
+    last_at = None
+    if started_at:
+        last_at = datetime.strptime(started_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
     return {
         "account_id": account_id(),
         "region": region(),
         "deployment": clean(deployment) if deployment else None,
-        "latest_scan": latest[0] if latest else None,
-        "scan_state": latest[0]["status"] if latest else "no_scan",
+        "latest_scan": scan or None,
+        "scan_state": scan.get("status", "unavailable") if scan else "no_scan",
         "overdue": bool(last_at and datetime.now(timezone.utc) - last_at > OVERDUE_AFTER),
     }
 
