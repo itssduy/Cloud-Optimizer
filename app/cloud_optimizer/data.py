@@ -6,6 +6,7 @@ from decimal import Decimal
 from boto3.dynamodb.conditions import Key
 
 from . import schema
+from .recommendations import advice
 from .users import table
 
 RESOURCE_TYPES = ("ec2_instance", "s3_bucket")
@@ -97,14 +98,20 @@ def resource(resource_type, resource_id):
         raise NotFound
     return {
         "resource": clean(item),
-        "findings": _query(f"FIND#{resource_type}#{region()}#{resource_id}#"),
+        "findings": with_advice(_query(f"FIND#{resource_type}#{region()}#{resource_id}#")),
         "actions": [a for a in actions() if a["target"]["resource_id"] == resource_id],
     }
 
 
+def with_advice(items):
+    for f in items:
+        f["advice"] = advice(f)
+    return items
+
+
 def findings(status="open"):
     items = _query("FIND#")
-    return [f for f in items if status is None or f["status"] == status]
+    return with_advice([f for f in items if status is None or f["status"] == status])
 
 
 def costs(days=30):
