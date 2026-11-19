@@ -8,6 +8,7 @@ __pycache__/
 # Keep local planning/context Markdown out of Git, including future notes.
 # Markdown files already tracked by Git remain tracked.
 *.md
+!DEPLOY.md
 
 # Local copy of the senior project MVP reference.
 /Senior Project.pdf
