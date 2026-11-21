@@ -11,6 +11,7 @@ from django.test import SimpleTestCase
 from moto import mock_aws
 
 from . import lifecycle, users
+from .testutils import sign_in
 
 ACCOUNT = "123456789012"
 BUCKET = "team-old-logs"
@@ -35,8 +36,7 @@ class LifecycleTests(SimpleTestCase):
         self.s3.create_bucket(Bucket=BUCKET)
         self.add_finding("finding_s3_incomplete_uploads")
         self.add_finding("finding_s3_tiering")
-        users.create_user("m@team.com", "M", "correct-horse-9")
-        self.client.post("/login/", {"email": "m@team.com", "password": "correct-horse-9"})
+        sign_in(self.client)
 
     def add_finding(self, name, bucket=BUCKET, **changes):
         item = json.loads((EXAMPLES / f"{name}.json").read_text(), parse_float=Decimal)
