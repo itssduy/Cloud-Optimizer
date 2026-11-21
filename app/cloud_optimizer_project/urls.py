@@ -1,6 +1,6 @@
 from django.urls import path
 
-from cloud_optimizer import actions, api, dashboard, ec2_pages, s3_pages, views
+from cloud_optimizer import actions, api, dashboard, ec2_pages, lifecycle, s3_pages, views
 
 urlpatterns = [
     path('', views.home, name='home'),
@@ -25,4 +25,5 @@ urlpatterns = [
     path('api/actions/', api.actions),
     path('api/actions/<str:request_id>/', actions.action_status),
     path('api/ec2/<str:instance_id>/<str:action>/', actions.request_action),
+    path('api/s3/<str:bucket>/lifecycle/', lifecycle.lifecycle),
 ]
