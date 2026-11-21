@@ -57,16 +57,3 @@ output "cognito_client_id" {
 output "cognito_domain" {
   value = local.cognito_domain
 }
-
-# values to paste into the IAM Identity Center SAML app (see DEPLOY.md)
-output "saml_acs_url" {
-  value = "${local.cognito_domain}/saml2/idpresponse"
-}
-
-output "saml_audience" {
-  value = "urn:amazon:cognito:sp:${aws_cognito_user_pool.main.id}"
-}
-
-output "saml_start_url" {
-  value = "${local.app_url}/auth/start/"
-}

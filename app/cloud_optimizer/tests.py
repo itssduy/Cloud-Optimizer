@@ -60,14 +60,6 @@ class AuthTests(SimpleTestCase):
         self.assertEqual(query["code_challenge_method"], ["S256"])
         self.assertEqual(query["redirect_uri"], ["http://localhost:8000/auth/callback/"])
 
-    def test_start_goes_straight_to_company_login(self):
-        os.environ["COGNITO_IDP"] = "AWS"
-        try:
-            query = parse_qs(urlparse(self.client.get("/auth/start/")["Location"]).query)
-        finally:
-            del os.environ["COGNITO_IDP"]
-        self.assertEqual(query["identity_provider"], ["AWS"])
-
     def test_full_sign_in(self):
         r = self.sign_in_via_cognito()
         self.assertRedirects(r, "/", fetch_redirect_response=False)

@@ -45,9 +45,6 @@ def start(session):
         "code_challenge": challenge,
         "code_challenge_method": "S256",
     }
-    if os.environ.get("COGNITO_IDP"):
-        # go straight to the company login instead of Cognito's own page
-        params["identity_provider"] = os.environ["COGNITO_IDP"]
     return f"{c['domain']}/oauth2/authorize?{urllib.parse.urlencode(params)}"
 
 

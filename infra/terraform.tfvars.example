@@ -2,13 +2,3 @@ aws_region = "us-east-1"
 
 # set to 0 to stop the app and most of the cost
 app_desired_count = 1
-
-# optional: sign in with your company's login instead of Cognito users
-# oidc_provider_name = "Okta"
-# oidc_issuer        = "https://yourcompany.okta.com"
-# oidc_client_id     = "..."
-# oidc_client_secret = "..."
-
-# optional: sign in with IAM Identity Center (AWS SSO). See DEPLOY.md.
-# saml_provider_name = "AWS"
-# saml_metadata_url  = "https://portal.sso.us-east-1.amazonaws.com/saml/metadata/..."

@@ -41,32 +41,6 @@ aws cognito-idp admin-disable-user --user-pool-id $POOL --username someone@compa
 
 Anyone who can sign in can use everything, including stopping instances and applying S3 rules.
 
-### Sign in with your AWS login (IAM Identity Center)
-
-This way nobody needs a Cloud Optimizer password. People click Sign in and use the same login they use for the AWS access portal.
-
-1. In the AWS console, open **IAM Identity Center** and click **Enable** (an account instance is fine if you don't use AWS Organizations).
-2. Under **Users**, add the people who should have access.
-3. Under **Applications**, click **Add application**, choose **I have an application I want to set up**, then **SAML 2.0**.
-4. Fill in the values from `terraform output`:
-   - Application start URL: `saml_start_url`
-   - Application ACS URL: `saml_acs_url`
-   - Application SAML audience: `saml_audience`
-5. Copy the **IAM Identity Center SAML metadata file** URL and submit.
-6. On the new application, open **Actions → Edit attribute mappings**:
-   - `Subject` → `${user:email}`, format `emailAddress`
-   - add `email` → `${user:email}`, format `unspecified`
-7. Under **Assign users**, add the people from step 2.
-8. Put the metadata URL in `infra/terraform.tfvars` and apply:
-
-   ```
-   saml_metadata_url = "https://portal.sso.us-east-1.amazonaws.com/saml/metadata/..."
-   ```
-
-After that, Sign in goes straight to the AWS login, and Cognito passwords are turned off. Only people assigned to the application can get in. Clicking the Cloud Optimizer tile in the AWS access portal works too.
-
-Okta, Entra ID, and Google Workspace work the same way through SAML, or through OIDC: create an app there with the redirect URL `<cognito_domain>/oauth2/idpresponse` and set `oidc_issuer`, `oidc_client_id`, and `oidc_client_secret`.
-
 ## Scans
 
 The audit Lambda runs every day at 06:00 UTC. It scans EC2 and S3 in the deployment region, pulls the last 30 days of spending from Cost Explorer, and checks for spending spikes. It never changes resources by itself.
