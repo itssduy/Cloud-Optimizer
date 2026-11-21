@@ -10,9 +10,8 @@
   {% block page %}
   {% if me %}
     <p>
-      {{ me.email }} ({{ me.role }})
+      {{ me.email }}
       <a href="{% url 'home' %}">Home</a>
-      {% if me.role == "admin" %}<a href="{% url 'users' %}">Users</a>{% endif %}
       <form method="post" action="{% url 'logout' %}" style="display:inline">{% csrf_token %}<button>Log out</button></form>
     </p>
   {% endif %}

@@ -3,25 +3,6 @@
 {% block heading %}Sign in{% endblock %}
 {% block access_content %}
 <p class="muted">Review your team’s AWS spending and resource findings.</p>
-<form class="access-form" id="login-form" method="post">
-  {% csrf_token %}
-  <label for="email">Email</label>
-  <input id="email" name="email" type="email" autocomplete="username" value="{{ email }}" required>
-  <label for="password">Password</label>
-  <input id="password" name="password" type="password" autocomplete="current-password" required>
-  <button class="button access-action" id="sign-in" type="submit">Sign in</button>
-</form>
-<p class="muted access-help">Your team administrator can grant access, reactivate your account, or reset your password.</p>
-<script>
-  const loginForm = document.querySelector("#login-form");
-  const signInButton = document.querySelector("#sign-in");
-  loginForm.addEventListener("submit", function () {
-    signInButton.textContent = "Signing in…";
-    signInButton.disabled = true;
-  });
-  window.addEventListener("pageshow", function () {
-    signInButton.textContent = "Sign in";
-    signInButton.disabled = false;
-  });
-</script>
+<a class="button access-action" id="sign-in" href="{% url 'login_start' %}">Sign in</a>
+<p class="muted access-help">Access is managed in your team’s AWS account. Ask whoever runs Cloud Optimizer to add you.</p>
 {% endblock %}

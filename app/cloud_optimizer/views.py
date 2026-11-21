@@ -1,11 +1,13 @@
+import logging
+
 from django.contrib import messages
-from django.contrib.auth.password_validation import validate_password
-from django.core.exceptions import ValidationError
-from django.http import Http404, HttpResponse
+from django.http import HttpResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
-from . import auth, dashboard, users
+from . import auth, dashboard, oidc, users
+
+log = logging.getLogger(__name__)
 
 
 def health(request):
@@ -18,90 +20,32 @@ def home(request):
 
 
 def login_view(request):
-    if not users.has_users():
-        return redirect("setup")
+    if auth.current_user(request):
+        return redirect("home")
+    return render(request, "cloud_optimizer/login.html")
 
-    email = ""
-    if request.method == "POST":
-        email = request.POST.get("email", "").strip()
-        password = request.POST.get("password", "")
-        if email and password:
-            user = users.authenticate(email, password)
-            if user:
-                auth.login(request, user)
-                return redirect("home")
-            messages.error(request, "Wrong email or password.")
-        else:
-            messages.error(request, "Enter your email and password.")
-    return render(request, "cloud_optimizer/login.html", {"email": email})
+
+def login_start(request):
+    return redirect(oidc.start(request.session))
+
+
+def login_callback(request):
+    try:
+        sub, email = oidc.finish(request.session, request.GET)
+    except oidc.LoginFailed as e:
+        log.warning("login failed: %s", e)
+        messages.error(request, "Sign-in didn't work. Try again.")
+        return redirect("login")
+    user = users.signed_in(sub, email)
+    if user.get("status") != "active":
+        messages.error(request, "Your access to Cloud Optimizer has been turned off.")
+        return redirect("login")
+    auth.login(request, user)
+    return redirect("home")
 
 
 @require_POST
 def logout_view(request):
     auth.logout(request)
-    messages.info(request, "You have signed out.")
-    return redirect("login")
-
-
-def setup(request):
-    if users.has_users():
-        raise Http404
-    if request.method == "POST":
-        password = request.POST.get("password", "")
-        try:
-            validate_password(password)
-            user = users.create_user(request.POST["email"], request.POST.get("name", ""), password, role="admin")
-        except ValidationError as e:
-            for msg in e.messages:
-                messages.error(request, msg)
-        else:
-            auth.login(request, user)
-            return redirect("home")
-    return render(request, "cloud_optimizer/setup.html")
-
-
-@auth.admin_required
-def users_view(request):
-    if request.method == "POST":
-        password = request.POST.get("password", "")
-        try:
-            validate_password(password)
-            users.create_user(request.POST["email"], request.POST.get("name", ""), password,
-                              role=request.POST.get("role", "member"))
-            messages.success(request, f"Added {request.POST['email']}.")
-        except ValidationError as e:
-            for msg in e.messages:
-                messages.error(request, msg)
-        except users.EmailTaken:
-            messages.error(request, "That email already has an account.")
-        return redirect("users")
-    return render(request, "cloud_optimizer/users.html",
-                  {"me": request.user_info, "users": users.list_users(), "roles": users.ROLES})
-
-
-@require_POST
-@auth.admin_required
-def user_update(request, user_id):
-    if user_id == request.user_info["user_id"]:
-        messages.error(request, "You can't change your own account here.")
-        return redirect("users")
-
-    action = request.POST.get("action")
-    if action in ("disable", "enable"):
-        users.update_user(user_id, status="disabled" if action == "disable" else "active")
-    elif action == "role" and request.POST.get("role") in users.ROLES:
-        users.update_user(user_id, role=request.POST["role"])
-    elif action == "reset_password":
-        password = request.POST.get("password", "")
-        try:
-            validate_password(password)
-        except ValidationError as e:
-            for msg in e.messages:
-                messages.error(request, msg)
-            return redirect("users")
-        users.set_password(user_id, password)
-    else:
-        messages.error(request, "Unknown action.")
-        return redirect("users")
-    messages.success(request, "Saved.")
-    return redirect("users")
+    # also end the Cognito session, otherwise "Sign in" logs straight back in
+    return redirect(oidc.logout_url() or "login")

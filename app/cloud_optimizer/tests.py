@@ -1,17 +1,29 @@
 import os
+import time
+from unittest import mock
+from urllib.parse import parse_qs, urlparse
 
 import boto3
-from django.test import SimpleTestCase
+import jwt
+from cryptography.hazmat.primitives.asymmetric import rsa
+from django.test import Client, SimpleTestCase
 from moto import mock_aws
 
-from . import users
+from . import oidc, users
+from .testutils import sign_in
+
+ISSUER = "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_test"
+KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
 
 @mock_aws
 class AuthTests(SimpleTestCase):
     def setUp(self):
-        os.environ["DYNAMODB_TABLE_NAME"] = "test"
-        os.environ["AWS_REGION"] = "us-east-1"
+        os.environ.update(
+            DYNAMODB_TABLE_NAME="test", AWS_REGION="us-east-1",
+            COGNITO_DOMAIN="https://login.example.com", COGNITO_USER_POOL_ID="us-east-1_test",
+            COGNITO_CLIENT_ID="client123", COGNITO_CLIENT_SECRET="secret",
+        )
         os.environ.pop("DYNAMODB_ENDPOINT_URL", None)
         boto3.client("dynamodb", region_name="us-east-1").create_table(
             TableName="test",
@@ -21,84 +33,91 @@ class AuthTests(SimpleTestCase):
             BillingMode="PAY_PER_REQUEST",
         )
 
-    def make_admin(self):
-        return users.create_user("admin@team.com", "Admin", "correct-horse-9", role="admin")
+    def token(self, **changes):
+        claims = {"sub": "abc-123", "email": "Duy@Team.com", "token_use": "id", "aud": "client123",
+                  "iss": ISSUER, "iat": int(time.time()), "exp": int(time.time()) + 300}
+        claims.update(changes)
+        return jwt.encode(claims, KEY, algorithm="RS256")
 
-    def log_in(self, email, password):
-        return self.client.post("/login/", {"email": email, "password": password})
+    def sign_in_via_cognito(self, **token_changes):
+        start = self.client.get("/auth/start/")
+        query = parse_qs(urlparse(start["Location"]).query)
+        state, nonce = query["state"][0], query["nonce"][0]
+        token = self.token(**{"nonce": nonce, **token_changes})
+        with mock.patch.object(oidc, "exchange_code", return_value=token), \
+             mock.patch.object(oidc, "signing_key", return_value=KEY.public_key()):
+            return self.client.get("/auth/callback/", {"code": "c", "state": state})
 
-    def test_first_visit_goes_to_setup(self):
-        self.assertRedirects(self.client.get("/login/"), "/setup/", fetch_redirect_response=False)
+    def test_login_page_has_sign_in_button(self):
+        self.assertContains(self.client.get("/login/"), "/auth/start/")
 
-    def test_setup_creates_admin_then_closes(self):
-        r = self.client.post("/setup/", {"email": "Admin@Team.com", "name": "A", "password": "correct-horse-9"})
+    def test_start_redirects_to_cognito(self):
+        r = self.client.get("/auth/start/")
+        url = urlparse(r["Location"])
+        query = parse_qs(url.query)
+        self.assertEqual(url.netloc, "login.example.com")
+        self.assertEqual(query["client_id"], ["client123"])
+        self.assertEqual(query["code_challenge_method"], ["S256"])
+        self.assertEqual(query["redirect_uri"], ["http://localhost:8000/auth/callback/"])
+
+    def test_full_sign_in(self):
+        r = self.sign_in_via_cognito()
         self.assertRedirects(r, "/", fetch_redirect_response=False)
-        self.assertEqual(users.list_users()[0]["role"], "admin")
-        self.assertEqual(users.list_users()[0]["email"], "admin@team.com")
-        self.assertEqual(self.client.get("/setup/").status_code, 404)
+        self.assertEqual(self.client.get("/").status_code, 200)
+        user = users.get_user("abc-123")
+        self.assertEqual(user["email"], "duy@team.com")
 
-    def test_setup_rejects_weak_password(self):
-        self.client.post("/setup/", {"email": "a@team.com", "password": "123"})
-        self.assertFalse(users.has_users())
+    def test_wrong_state_is_rejected(self):
+        self.client.get("/auth/start/")
+        r = self.client.get("/auth/callback/", {"code": "c", "state": "forged"})
+        self.assertRedirects(r, "/login/", fetch_redirect_response=False)
+        self.assertEqual(self.client.get("/").status_code, 302)
+
+    def test_bad_tokens_are_rejected(self):
+        for changes in ({"aud": "someone-else"}, {"iss": "https://evil.example.com"},
+                        {"exp": int(time.time()) - 10}, {"token_use": "access"}, {"nonce": "replayed"}):
+            client = Client()
+            self.client = client
+            r = self.sign_in_via_cognito(**changes)
+            self.assertRedirects(r, "/login/", fetch_redirect_response=False, msg_prefix=str(changes))
+            self.assertEqual(client.get("/").status_code, 302, changes)
+
+    def test_token_signed_by_another_key_is_rejected(self):
+        other = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        start = self.client.get("/auth/start/")
+        query = parse_qs(urlparse(start["Location"]).query)
+        token = jwt.encode({"sub": "x", "email": "x@x.com", "token_use": "id", "aud": "client123", "iss": ISSUER,
+                            "iat": int(time.time()), "exp": int(time.time()) + 300, "nonce": query["nonce"][0]},
+                           other, algorithm="RS256")
+        with mock.patch.object(oidc, "exchange_code", return_value=token), \
+             mock.patch.object(oidc, "signing_key", return_value=KEY.public_key()):
+            r = self.client.get("/auth/callback/", {"code": "c", "state": query["state"][0]})
+        self.assertRedirects(r, "/login/", fetch_redirect_response=False)
+
+    def test_cognito_error_is_rejected(self):
+        start = self.client.get("/auth/start/")
+        state = parse_qs(urlparse(start["Location"]).query)["state"][0]
+        r = self.client.get("/auth/callback/", {"error": "access_denied", "state": state})
+        self.assertRedirects(r, "/login/", fetch_redirect_response=False)
 
     def test_anonymous_is_redirected(self):
-        self.make_admin()
-        for url in ("/", "/users/"):
+        for url in ("/", "/status/", "/ec2/", "/s3/"):
             self.assertRedirects(self.client.get(url), "/login/", fetch_redirect_response=False)
 
-    def test_login_and_logout(self):
-        self.make_admin()
-        self.assertRedirects(self.log_in("admin@team.com", "correct-horse-9"), "/", fetch_redirect_response=False)
-        self.assertEqual(self.client.get("/").status_code, 200)
-        signed_out = self.client.post("/logout/", follow=True)
-        self.assertContains(signed_out, "You have signed out.")
+    def test_logout_ends_cognito_session_too(self):
+        sign_in(self.client)
+        r = self.client.post("/logout/")
+        self.assertTrue(r["Location"].startswith("https://login.example.com/logout?"))
         self.assertEqual(self.client.get("/").status_code, 302)
 
-    def test_wrong_password(self):
-        self.make_admin()
-        r = self.log_in("admin@team.com", "nope")
-        self.assertEqual(r.status_code, 200)
-        self.assertContains(r, "Wrong email or password")
-        self.assertContains(r, 'value="admin@team.com"')
-        self.assertNotContains(r, "nope")
+    def test_turned_off_user_is_kicked_out_and_blocked(self):
+        self.sign_in_via_cognito()
+        users.update_user("abc-123", status="disabled")
         self.assertEqual(self.client.get("/").status_code, 302)
+        self.assertRedirects(self.sign_in_via_cognito(), "/login/", fetch_redirect_response=False)
 
-    def test_member_cannot_manage_users(self):
-        self.make_admin()
-        member = users.create_user("m@team.com", "M", "correct-horse-9")
-        self.log_in("m@team.com", "correct-horse-9")
-        self.assertContains(self.client.get("/users/"), "Access denied", status_code=403)
-        self.assertEqual(self.client.post(f"/users/{member['user_id']}/", {"action": "disable"}).status_code, 403)
-
-    def test_admin_adds_user(self):
-        self.make_admin()
-        self.log_in("admin@team.com", "correct-horse-9")
-        self.client.post("/users/", {"email": "new@team.com", "password": "another-pass-7", "role": "member"})
-        self.assertIn("new@team.com", [u["email"] for u in users.list_users()])
-        self.client.post("/users/", {"email": "new@team.com", "password": "another-pass-7"})
-        self.assertEqual(len(users.list_users()), 2)
-
-    def test_disabled_user_is_kicked_out(self):
-        self.make_admin()
-        member = users.create_user("m@team.com", "M", "correct-horse-9")
-        self.log_in("m@team.com", "correct-horse-9")
-        users.update_user(member["user_id"], status="disabled")
-        ended_session = self.client.get("/", follow=True)
-        self.assertRedirects(ended_session, "/login/")
-        self.assertContains(ended_session, "Your session has ended.")
-        self.assertContains(self.log_in("m@team.com", "correct-horse-9"), "Wrong email or password")
-        self.assertEqual(self.client.get("/").status_code, 302)
-
-    def test_password_reset_ends_old_sessions(self):
-        self.make_admin()
-        member = users.create_user("m@team.com", "M", "correct-horse-9")
-        self.log_in("m@team.com", "correct-horse-9")
-        users.set_password(member["user_id"], "brand-new-pass-3")
-        self.assertEqual(self.client.get("/").status_code, 302)
-        self.assertIsNotNone(users.authenticate("m@team.com", "brand-new-pass-3"))
-
-    def test_admin_cannot_disable_self(self):
-        admin = self.make_admin()
-        self.log_in("admin@team.com", "correct-horse-9")
-        self.client.post(f"/users/{admin['user_id']}/", {"action": "disable"})
-        self.assertEqual(users.get_user(admin["user_id"])["status"], "active")
+    def test_csrf_is_enforced(self):
+        client = Client(enforce_csrf_checks=True)
+        sign_in(client)
+        self.assertEqual(client.post("/logout/").status_code, 403)
+        self.assertEqual(client.post("/api/ec2/i-0123456789abcdef0/stop/", {"confirm": "yes"}).status_code, 403)

@@ -123,6 +123,15 @@ USE_TZ = True
 SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
 SESSION_COOKIE_AGE = 60 * 60 * 12
 
+# public address of the app, e.g. https://xxxx.cloudfront.net (set by Terraform)
+SITE_URL = os.environ.get('SITE_URL', 'http://localhost:8000').rstrip('/')
+CSRF_TRUSTED_ORIGINS = [SITE_URL]
+if SITE_URL.startswith('https://'):
+    # CloudFront talks to the app over http but tells it the visitor used https
+    SECURE_PROXY_SSL_HEADER = ('HTTP_CLOUDFRONT_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 

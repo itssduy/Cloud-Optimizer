@@ -22,16 +22,10 @@ variable "container_port" {
   default     = 8000
 }
 
-variable "app_image_tag" {
-  description = "Image tag to deploy"
-  type        = string
-  default     = "latest"
-}
-
 variable "app_desired_count" {
-  description = "Number of app tasks, leave at 0 until an image is pushed"
+  description = "Number of app tasks, set to 0 to stop the app"
   type        = number
-  default     = 0
+  default     = 1
 }
 
 variable "app_cpu" {

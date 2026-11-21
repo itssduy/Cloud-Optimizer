@@ -7,6 +7,7 @@ from django.test import SimpleTestCase
 from moto import mock_aws
 
 from . import actions, data, schema, users
+from .testutils import sign_in
 
 ACCOUNT = "123456789012"
 
@@ -26,8 +27,7 @@ class Ec2ActionTests(SimpleTestCase):
         self.ec2 = boto3.client("ec2", region_name="us-east-1")
         ami = self.ec2.describe_images()["Images"][0]["ImageId"]
         self.instance = self.ec2.run_instances(ImageId=ami, MinCount=1, MaxCount=1)["Instances"][0]["InstanceId"]
-        self.user = users.create_user("m@team.com", "M", "correct-horse-9")
-        self.client.post("/login/", {"email": "m@team.com", "password": "correct-horse-9"})
+        self.user = sign_in(self.client)
 
     def act(self, action="stop", instance=None, confirm="yes", request_id=None):
         return self.client.post(f"/api/ec2/{instance or self.instance}/{action}/",
