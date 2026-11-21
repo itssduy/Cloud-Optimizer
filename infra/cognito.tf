@@ -9,11 +9,12 @@ resource "aws_cognito_user_pool" "main" {
     allow_admin_create_user_only = true
   }
 
+  # loose for the demo, tighten this before real use
   password_policy {
-    minimum_length                   = 12
-    require_lowercase                = true
-    require_uppercase                = true
-    require_numbers                  = true
+    minimum_length                   = 8
+    require_lowercase                = false
+    require_uppercase                = false
+    require_numbers                  = false
     require_symbols                  = false
     temporary_password_validity_days = 7
   }
