@@ -99,6 +99,19 @@ class Ec2RuleTests(unittest.TestCase):
         b = self.by_id(self.check())[i]["findings"][0]
         self.assertEqual((a["pk"], a["sk"]), (b["pk"], b["sk"]))
 
+    def test_short_demo_window(self):
+        i = self.launch()
+        for m in range(0, 60, 5):
+            self.cw.put_metric_data(Namespace="AWS/EC2", MetricData=[
+                {"MetricName": "CPUUtilization", "Value": 0.5, "Timestamp": NOW - timedelta(minutes=m + 2),
+                 "Dimensions": [{"Name": "InstanceId", "Value": i}]}])
+        r = self.by_id(self.check(days=1 / 24))[i]
+        self.assertEqual(r["outcome"], "finding")
+        evidence = r["findings"][0]["evidence"]
+        self.assertEqual(evidence["expected_datapoints"], 12)
+        self.assertEqual(evidence["window"], "1 hour")
+        self.assertIn("last 1 hour", r["findings"][0]["reason"])
+
     def test_reads_every_page(self):
         class Paginator:
             def paginate(self):

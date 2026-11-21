@@ -18,7 +18,7 @@ def benefit(finding):
 def ec2_idle(f):
     e = f["evidence"]
     return {
-        "observed": (f"Average CPU was {e['average']}% over {e['period_days']} days "
+        "observed": (f"Average CPU was {e['average']}% over {e.get('window') or str(e['period_days']) + ' days'} "
                      f"({e['datapoints']} of {e['expected_datapoints']} hourly datapoints)."),
         "why": "Running instances are billed every hour, even when they do very little.",
         "next_step": "Check with whoever owns it. If it's not needed, stop it, or move it to a smaller type.",
@@ -36,7 +36,7 @@ def s3_uploads(f):
         "observed": (f"{e['stale_upload_count']} incomplete uploads older than {e['age_threshold_days']} days, "
                      f"the oldest started {e['oldest_initiated'][:10]}."),
         "why": "Parts of unfinished uploads are stored and billed, but don't show up as objects.",
-        "next_step": f"Add a lifecycle rule that aborts incomplete uploads after {e['age_threshold_days']} days.",
+        "next_step": f"Add a lifecycle rule that aborts incomplete uploads after {max(1, e['age_threshold_days'])} days.",
         "limitations": ["We don't know how much data the parts hold, so there's no savings number."],
         "charges": "No extra charge.",
         "action": "s3_apply_lifecycle",

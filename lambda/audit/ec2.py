@@ -18,24 +18,34 @@ def list_instances(ec2):
     return instances
 
 
+def window_text(days):
+    hours = round(days * 24)
+    if days < 1:
+        return f"{hours} hour" + ("" if hours == 1 else "s")
+    return f"{days:g} days"
+
+
 def cpu_evidence(cloudwatch, instance_id, now, days):
     start = now - timedelta(days=days)
+    # hourly points normally, 5-minute points for short demo windows
+    period = PERIOD_SECONDS if days >= 1 else 300
     points = cloudwatch.get_metric_statistics(
         Namespace="AWS/EC2",
         MetricName="CPUUtilization",
         Dimensions=[{"Name": "InstanceId", "Value": instance_id}],
         StartTime=start,
         EndTime=now,
-        Period=PERIOD_SECONDS,
+        Period=period,
         Statistics=["Average"],
     )["Datapoints"]
-    expected = days * 24
+    expected = round(days * 86400 / period)
     average = round(sum(p["Average"] for p in points) / len(points), 2) if points else None
     return {
         "metric": "CPUUtilization",
         "statistic": "Average",
         "average": average,
         "period_days": days,
+        "window": window_text(days),
         "datapoints": len(points),
         "expected_datapoints": expected,
         "window_start": iso(start),
@@ -112,7 +122,7 @@ def check_instances(ec2, cloudwatch, account_id, region, scan_id, now,
             "resource_id": instance["InstanceId"],
             "rule": "ec2_idle_cpu",
             "status": "open",
-            "reason": (f"Average CPU was {evidence['average']}% over the last {days} days "
+            "reason": (f"Average CPU was {evidence['average']}% over the last {evidence['window']} "
                        f"(threshold {threshold:g}%). Low CPU doesn't always mean it's unused."),
             "evidence": {**evidence, "instance_type": instance["InstanceType"]},
             "recommendation": {

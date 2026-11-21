@@ -182,9 +182,11 @@ class Audit:
         self.save_scan("running")
         ok = {
             "ec2": self.step("ec2", lambda: self.apply("ec2_instance", ec2.check_instances(
-                c["ec2"], c["cloudwatch"], self.account_id, self.region, self.scan_id, self.now))),
+                c["ec2"], c["cloudwatch"], self.account_id, self.region, self.scan_id, self.now,
+                days=float(os.environ.get("EC2_WINDOW_HOURS", 168)) / 24))),
             "s3": self.step("s3", lambda: self.apply("s3_bucket", s3.check_buckets(
-                c["s3"], c["cloudwatch"], self.account_id, self.region, self.scan_id, self.now))),
+                c["s3"], c["cloudwatch"], self.account_id, self.region, self.scan_id, self.now,
+                upload_age_days=int(os.environ.get("UPLOAD_AGE_DAYS", 7))))),
             "costs": self.step("costs", self.update_costs),
         }
         self.step("savings", self.update_savings)
