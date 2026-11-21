@@ -107,7 +107,7 @@ def check_instances(ec2, cloudwatch, account_id, region, scan_id, now,
         if evidence["datapoints"] < evidence["expected_datapoints"] * min_coverage:
             result["outcome"] = "insufficient_data"
             result["note"] = (f"only {evidence['datapoints']} of {evidence['expected_datapoints']} "
-                              f"hourly CPU datapoints")
+                              f"CPU datapoints")
             continue
 
         if evidence["average"] >= threshold:
