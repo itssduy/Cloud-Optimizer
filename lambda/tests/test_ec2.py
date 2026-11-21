@@ -111,6 +111,8 @@ class Ec2RuleTests(unittest.TestCase):
         self.assertEqual(evidence["expected_datapoints"], 12)
         self.assertEqual(evidence["window"], "1 hour")
         self.assertIn("last 1 hour", r["findings"][0]["reason"])
+        self.assertEqual(rules.window_text(10 / 1440), "10 minutes")
+        self.assertEqual(rules.window_text(7), "7 days")
 
     def test_reads_every_page(self):
         class Paginator:

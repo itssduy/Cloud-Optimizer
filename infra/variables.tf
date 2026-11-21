@@ -83,7 +83,7 @@ variable "enable_audit_schedule" {
 }
 
 variable "demo_mode" {
-  description = "Shorter evidence windows so findings show up within an hour (1 hour of CPU, any incomplete upload). Keep false for real use."
+  description = "Shorter evidence windows so findings show up within an hour (10 minutes of CPU, any incomplete upload). Keep false for real use."
   type        = bool
   default     = false
 }

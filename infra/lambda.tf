@@ -25,7 +25,7 @@ resource "aws_lambda_function" "audit" {
     variables = {
       DYNAMODB_TABLE_NAME = aws_dynamodb_table.main.name
       EXPECTED_ACCOUNT_ID = data.aws_caller_identity.current.account_id
-      EC2_WINDOW_HOURS    = var.demo_mode ? "1" : "168"
+      EC2_WINDOW_MINUTES  = var.demo_mode ? "10" : "10080"
       UPLOAD_AGE_DAYS     = var.demo_mode ? "0" : "7"
     }
   }

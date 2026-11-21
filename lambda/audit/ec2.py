@@ -19,8 +19,11 @@ def list_instances(ec2):
 
 
 def window_text(days):
-    hours = round(days * 24)
+    minutes = round(days * 1440)
+    if minutes < 60:
+        return f"{minutes} minutes"
     if days < 1:
+        hours = round(minutes / 60)
         return f"{hours} hour" + ("" if hours == 1 else "s")
     return f"{days:g} days"
 
