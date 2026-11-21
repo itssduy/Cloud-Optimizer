@@ -82,7 +82,19 @@ variable "enable_audit_schedule" {
   default     = true
 }
 
-# Optional corporate login. Leave oidc_issuer empty to use Cognito users only.
+# Optional company login. Leave these empty to use Cognito users with passwords.
+variable "saml_provider_name" {
+  description = "Name of the SAML login, e.g. AWS for IAM Identity Center"
+  type        = string
+  default     = "AWS"
+}
+
+variable "saml_metadata_url" {
+  description = "SAML metadata URL from IAM Identity Center (or another SAML provider)"
+  type        = string
+  default     = ""
+}
+
 variable "oidc_provider_name" {
   description = "Name shown on the login page, e.g. Okta"
   type        = string

@@ -8,3 +8,7 @@ app_desired_count = 1
 # oidc_issuer        = "https://yourcompany.okta.com"
 # oidc_client_id     = "..."
 # oidc_client_secret = "..."
+
+# optional: sign in with IAM Identity Center (AWS SSO). See DEPLOY.md.
+# saml_provider_name = "AWS"
+# saml_metadata_url  = "https://portal.sso.us-east-1.amazonaws.com/saml/metadata/..."

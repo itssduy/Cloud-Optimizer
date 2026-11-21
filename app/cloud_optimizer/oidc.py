@@ -35,7 +35,7 @@ def start(session):
     state, nonce, verifier = secrets.token_urlsafe(24), secrets.token_urlsafe(24), secrets.token_urlsafe(48)
     session["oidc"] = {"state": state, "nonce": nonce, "verifier": verifier}
     challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
-    query = urllib.parse.urlencode({
+    params = {
         "response_type": "code",
         "client_id": c["client_id"],
         "redirect_uri": c["redirect_uri"],
@@ -44,8 +44,11 @@ def start(session):
         "nonce": nonce,
         "code_challenge": challenge,
         "code_challenge_method": "S256",
-    })
-    return f"{c['domain']}/oauth2/authorize?{query}"
+    }
+    if os.environ.get("COGNITO_IDP"):
+        # go straight to the company login instead of Cognito's own page
+        params["identity_provider"] = os.environ["COGNITO_IDP"]
+    return f"{c['domain']}/oauth2/authorize?{urllib.parse.urlencode(params)}"
 
 
 def exchange_code(code, verifier):

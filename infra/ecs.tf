@@ -46,6 +46,7 @@ resource "aws_ecs_task_definition" "app" {
       { name = "COGNITO_DOMAIN", value = local.cognito_domain },
       { name = "COGNITO_USER_POOL_ID", value = aws_cognito_user_pool.main.id },
       { name = "COGNITO_CLIENT_ID", value = aws_cognito_user_pool_client.app.id },
+      { name = "COGNITO_IDP", value = local.direct_idp },
     ]
 
     secrets = [
