@@ -36,7 +36,6 @@
             <a href="{{ overview_url }}#alerts">Alerts</a>
             <span class="disabled">Activity <small>Later</small></span>
             <a href="{% if sample %}#scan{% else %}{{ status_url }}{% endif %}" {% if request.resolver_match.url_name == 'deployment_status' %}class="active" aria-current="page"{% endif %}>Deployment status</a>
-            {% if me.role == "admin" %}<a href="{% url 'users' %}">Team users</a>{% endif %}
         </nav>
         <div class="sidebar-footer">EC2 &amp; S3 · AWS</div>
     </aside>

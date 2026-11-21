@@ -11,6 +11,7 @@ from django.test import SimpleTestCase
 from moto import mock_aws
 
 from . import users
+from .testutils import sign_in
 
 EXAMPLES = Path(__file__).parent / "examples"
 ACCOUNT = "123456789012"
@@ -29,8 +30,7 @@ class ApiTests(SimpleTestCase):
             BillingMode="PAY_PER_REQUEST",
         )
         self.table = users.table()
-        users.create_user("m@team.com", "M", "correct-horse-9")
-        self.client.post("/login/", {"email": "m@team.com", "password": "correct-horse-9"})
+        sign_in(self.client)
 
     def seed(self, *names, **overrides):
         for name in names:

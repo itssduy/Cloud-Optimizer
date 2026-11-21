@@ -81,8 +81,11 @@ resource "aws_iam_role_policy_attachment" "ecs_execution_managed" {
 
 data "aws_iam_policy_document" "ecs_execution_secrets" {
   statement {
-    actions   = ["secretsmanager:GetSecretValue"]
-    resources = [aws_secretsmanager_secret.django_secret_key.arn]
+    actions = ["secretsmanager:GetSecretValue"]
+    resources = [
+      aws_secretsmanager_secret.django_secret_key.arn,
+      aws_secretsmanager_secret.cognito_client_secret.arn,
+    ]
   }
 }
 
