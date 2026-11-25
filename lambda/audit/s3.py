@@ -116,10 +116,10 @@ def check_bucket(s3, cloudwatch, account_id, region, scan_id, now, name, upload_
                 {"stale_upload_count": len(stale), "oldest_initiated": iso(oldest),
                  "age_threshold_days": upload_age_days, "checked_at": iso(now)},
                 {"action": "s3_apply_lifecycle",
-                 "text": f"Add a lifecycle rule to abort incomplete uploads after {upload_age_days} days.",
+                 "text": f"Add a lifecycle rule to abort incomplete uploads after {max(1, upload_age_days)} days.",
                  "proposed_rule": {"ID": "cloud-optimizer-abort-uploads", "Status": "Enabled",
                                    "Filter": {},
-                                   "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": upload_age_days}}},
+                                   "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": max(1, upload_age_days)}}},
                 scan_id, now,
             ))
 
