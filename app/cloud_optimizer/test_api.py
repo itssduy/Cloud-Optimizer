@@ -431,6 +431,101 @@ class ApiTests(SimpleTestCase):
         self.assertEqual(self.get("/api/alerts/").json()["alerts"][0]["alert_type"], "spend_anomaly")
         self.assertEqual(self.get("/api/actions/").json()["actions"][0]["outcome"], "verified")
 
+    def test_alert_list_and_detail_show_only_scoped_records(self):
+        other_id = "2026-11-06-total"
+        self.seed("alert")
+        self.seed("alert", pk="ACCT#999999999999", sk="ALERT#2026-11-06#total",
+                  alert_id=other_id, explanation="Other account alert")
+
+        listing = self.get("/alerts/")
+        self.assertContains(listing, ACCOUNT)
+        self.assertContains(listing, 'href="/alerts/2026-11-05-total/"')
+        self.assertContains(listing, "Earlier billing day")
+        self.assertContains(listing, "Estimated billing")
+        self.assertNotContains(listing, "Other account alert")
+        self.assertEqual(self.get(f"/alerts/{other_id}/").status_code, 404)
+
+        detail = self.get("/alerts/2026-11-05-total/")
+        for text in ("USD 4.82", "USD 2.10", "14-day average", "AWS Cost Explorer", "Billing fetched",
+                     "Amazon Elastic Compute Cloud - Compute", "View service spending", "Observed at detection"):
+            self.assertContains(detail, text)
+        self.assertContains(detail, 'href="/findings/?service=ec2"')
+        self.assertContains(detail, 'href="/spending/?days=7&amp;day=2026-11-05"')
+
+    def test_alert_spending_link_preserves_the_historical_day_and_service(self):
+        day = (datetime.now(timezone.utc).date() - timedelta(days=35)).isoformat()
+        service = "Amazon Simple Storage Service"
+        self.seed_billing_day(35, {service: "10.50"})
+        self.seed_billing_day(36, {"Amazon EC2": "6.00"})
+        self.seed_billing_day(34, {service: "25.00"})
+        page = self.client.get("/spending/", {"days": 7, "day": day, "service": service})
+        self.assertEqual(page.context["end"].isoformat(), day)
+        self.assertContains(page, "USD 10.50")
+        self.assertContains(page, f'name="day" value="{day}"')
+        self.assertNotContains(page, "USD 25.00")
+        empty = self.client.get("/spending/", {"days": 7, "day": day, "service": "Amazon CloudWatch"})
+        self.assertContains(empty, "Spending · Amazon CloudWatch")
+        self.assertContains(empty, "No amounts are saved for this selection.")
+        older_day = (datetime.now(timezone.utc).date() - timedelta(days=405)).isoformat()
+        older = self.client.get("/spending/", {"days": 7, "day": older_day})
+        self.assertEqual(older.context["end"].isoformat(), older_day)
+        self.assertContains(older, "No billing data is saved for this period.")
+        self.assertEqual(self.client.get("/spending/", {"day": "2026-02-30"}).status_code, 200)
+
+    def test_alerts_distinguish_the_latest_saved_check_states(self):
+        page = self.get("/alerts/")
+        self.assertContains(page, "No saved check")
+        self.assertNotContains(page, "No anomaly detected")
+
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        check_day = (datetime.now(timezone.utc).date() - timedelta(days=2)).isoformat()
+        cases = (
+            ("normal", "No anomaly detected"),
+            ("no_data", "Billing data unavailable"),
+            ("insufficient_history", "Insufficient billing history"),
+            ("stale", "Billing data is stale"),
+            ("billing_failed", "Billing fetch failed"),
+            ("failed", "Spending check failed"),
+        )
+        for outcome, label in cases:
+            with self.subTest(outcome=outcome):
+                check = {"outcome": outcome, "date": check_day, "billing_estimated": True,
+                         "baseline_days": 8, "baseline_window_days": 14}
+                self.seed("scan_completed", sk=f"SCAN#{today}#test", started_at=today,
+                          completed_at=today, spending_check=check)
+                page = self.get("/alerts/")
+                self.assertContains(page, label)
+                if outcome == "normal":
+                    self.assertContains(page, "estimated charges")
+                    self.assertContains(page, "Newer billing days are still unavailable")
+                    self.assertContains(page, "Only 8 of 14 baseline days were available")
+                else:
+                    self.assertNotContains(page, "No anomaly detected")
+
+    def test_alerts_use_legacy_notes_and_errors_without_assuming_a_clean_check(self):
+        self.seed("scan_completed")
+        page = self.get("/alerts/")
+        self.assertContains(page, "Check result unavailable")
+        self.assertContains(page, "The latest audit is overdue")
+        self.assertNotContains(page, "No anomaly detected")
+        self.seed("scan_completed", notes=["spending check: insufficient_history (only 2 of 7 days of history needed)"])
+        self.assertContains(self.get("/alerts/"), "Insufficient billing history")
+        self.seed("scan_completed", errors=[{"service": "anomalies", "message": "private diagnostic"}])
+        page = self.get("/alerts/")
+        self.assertContains(page, "Spending check failed")
+        self.assertNotContains(page, "private diagnostic")
+
+    def test_alert_read_errors_and_signed_out_requests(self):
+        error = ClientError({"Error": {"Code": "AccessDenied", "Message": "private diagnostic"}}, "Query")
+        with patch("cloud_optimizer.alert_pages.data.alerts", side_effect=error):
+            page = self.get("/alerts/")
+        self.assertContains(page, "Saved alerts are temporarily unavailable", status_code=503)
+        self.assertNotContains(page, "private diagnostic", status_code=503)
+        self.assertEqual(self.client.post("/alerts/").status_code, 405)
+        self.client.post("/logout/")
+        self.assertRedirects(self.get("/alerts/"), "/login/", fetch_redirect_response=False)
+        self.assertRedirects(self.get("/alerts/2026-11-05-total/"), "/login/", fetch_redirect_response=False)
+
     def test_store_down_is_503(self):
         self.table.delete()
         self.assertEqual(self.get("/api/findings/").status_code, 503)

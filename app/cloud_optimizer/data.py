@@ -39,9 +39,9 @@ def clean(value):
     return value
 
 
-def _query(prefix, newest_first=False, limit=None, start=None):
+def _query(prefix, newest_first=False, limit=None, start=None, end=None):
     if start:
-        key = Key("pk").eq(schema.account_pk(account_id())) & Key("sk").between(start, prefix + "￿")
+        key = Key("pk").eq(schema.account_pk(account_id())) & Key("sk").between(start, end or prefix + "￿")
     else:
         key = Key("pk").eq(schema.account_pk(account_id())) & Key("sk").begins_with(prefix)
     kwargs = {"KeyConditionExpression": key, "ScanIndexForward": not newest_first}
@@ -123,7 +123,10 @@ def findings(status="open"):
     return with_advice([f for f in items if status is None or f["status"] == status])
 
 
-def costs(days=30):
+def costs(days=30, through=None):
+    if through:
+        start = through - timedelta(days=days - 1)
+        return _query("COST#", start=schema.cost_sk(start.isoformat()), end=schema.cost_sk(through.isoformat()))
     start = (datetime.now(timezone.utc).date() - timedelta(days=days)).isoformat()
     return _query("COST#", start=schema.cost_sk(start))
 

@@ -79,10 +79,11 @@
                 <p class="alert-title">Above the usual daily spend</p>
                 <p>{{ alert.explanation }}</p>
                 <p class="muted">${{ alert.actual.amount|floatformat:2 }} {% if alert.actual.estimated %}estimated{% else %}recorded{% endif %} vs ${{ alert.expected.amount|floatformat:2 }} expected · {{ alert.date|date:"M j, Y" }}</p>
-                <a href="#spending">See spending breakdown <span aria-hidden="true">→</span></a>
+                <a href="{% if sample or not alert.date %}#spending{% else %}{% url 'spending' %}?days=7&amp;day={{ alert.date|date:'Y-m-d' }}{% endif %}">See spending breakdown <span aria-hidden="true">→</span></a>
             {% else %}
                 <p class="empty">{% if spending %}No open alerts saved.{% else %}Alert data is unavailable.{% endif %}</p>
             {% endif %}
+            {% if not sample %}<a href="{% url 'alerts' %}">View spending alerts</a>{% endif %}
         </section>
     </div>
 
