@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
@@ -350,6 +350,81 @@ class ApiTests(SimpleTestCase):
         body = self.get("/api/costs/").json()
         self.assertEqual(body["costs"][0]["total"]["amount"], 4.82)
         self.assertIsNone(body["savings"])
+
+    def seed_billing_day(self, days_ago, services, estimated=False, account=ACCOUNT):
+        date = (datetime.now(timezone.utc).date() - timedelta(days=days_ago)).isoformat()
+        by_service = {
+            name: {"amount": Decimal(amount), "currency": "USD", "estimated": estimated}
+            for name, amount in services.items()
+        }
+        total = {"amount": sum(money["amount"] for money in by_service.values()),
+                 "currency": "USD", "estimated": estimated}
+        self.seed("daily_cost", pk=f"ACCT#{account}", sk=f"COST#{date}", date=date,
+                  total=total, by_service=by_service)
+
+    def test_spending_filters_saved_dates_and_service_amounts(self):
+        compute = "Amazon Elastic Compute Cloud - Compute"
+        self.seed_billing_day(1, {compute: "10.10"}, estimated=True)
+        self.seed_billing_day(2, {compute: "0"})
+        self.seed_billing_day(5, {"Amazon Simple Storage Service": "-1.20"})
+        self.seed_billing_day(12, {"AWS Lambda": "4"})
+        self.seed_billing_day(0, {"Unfinished billing day": "100"})
+        self.seed_billing_day(1, {"Different account service": "100"}, account="999999999999")
+
+        week = self.client.get("/spending/", {"days": 7})
+        for text in ("USD 8.90", "USD 0.00", "USD -1.20", "3 of 7 days", "Includes estimated billing",
+                     "Some billing days are missing", "AWS Cost Explorer", "Billing fetched", "All regions"):
+            self.assertContains(week, text)
+        self.assertNotContains(week, "Unfinished billing day")
+        self.assertNotContains(week, "Different account service")
+        self.assertContains(self.get("/spending/"), "USD 12.90")
+
+        selected = self.client.get("/spending/", {"days": 7, "service": compute})
+        self.assertContains(selected, "USD 10.10")
+        self.assertContains(selected, "No service entry")
+        self.assertNotContains(selected, "USD 8.90")
+        older = self.client.get("/spending/", {"days": 7, "service": "AWS Lambda"})
+        self.assertContains(older, "No amounts are saved for this selection")
+        self.assertContains(older, 'value="AWS Lambda" selected')
+
+    def test_spending_shows_projections_and_unpriced_findings(self):
+        self.seed("savings", "resource_ec2", "resource_s3", "finding_ec2_idle")
+        self.seed("finding_s3_tiering", savings_note="Depends on future access patterns")
+        page = self.get("/spending/")
+        for text in ("No billing data is saved", "USD 30.37", "estimated / month", "730 hours",
+                     "Achieved savings · Unavailable", "1 finding without a dollar estimate",
+                     "Depends on future access patterns", "transition request charge"):
+            self.assertContains(page, text)
+        self.assertContains(page, 'href="/ec2/i-0abc123def4567890/"')
+        self.assertContains(page, 'href="/s3/acme-old-logs/"')
+
+        self.seed("savings", finding_count=1, missing_estimate_count=1,
+                  total_monthly={"amount": Decimal("0"), "currency": "USD"})
+        unpriced = self.get("/spending/")
+        self.assertContains(unpriced, "Monthly estimate unavailable")
+        self.assertNotContains(unpriced, "USD 0.00")
+
+    def test_spending_reports_the_latest_billing_failure_and_saved_read_errors(self):
+        self.seed_billing_day(2, {"Amazon Simple Storage Service": "1.20"})
+        self.seed("scan_completed", status="partial", errors=[{"service": "costs", "message": "private diagnostic"}])
+        page = self.get("/spending/")
+        self.assertContains(page, "The latest billing fetch failed")
+        self.assertContains(page, "USD 1.20")
+        self.assertNotContains(page, "private diagnostic")
+
+        error = ClientError({"Error": {"Code": "AccessDenied", "Message": "private diagnostic"}}, "Query")
+        with patch("cloud_optimizer.spending.data.costs", side_effect=error):
+            page = self.get("/spending/")
+        self.assertContains(page, "Saved spending data is temporarily unavailable", status_code=503)
+        self.assertNotContains(page, "private diagnostic", status_code=503)
+
+    def test_spending_requires_login_and_only_reads(self):
+        self.assertContains(self.get("/"), 'href="/spending/">View spending and savings</a>')
+        self.assertEqual(self.client.post("/spending/").status_code, 405)
+        self.client.post("/logout/")
+        with patch("cloud_optimizer.spending.data.costs") as costs:
+            self.assertRedirects(self.get("/spending/"), "/login/", fetch_redirect_response=False)
+            costs.assert_not_called()
 
     def test_alerts_and_actions(self):
         self.seed("alert", "action_ec2_stop")
