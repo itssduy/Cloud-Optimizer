@@ -10,7 +10,7 @@ body {
 }
 a { color: #1e5798; text-decoration: none; }
 a:hover { text-decoration: underline; }
-a:focus-visible, button:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 3px solid #ed9b32; outline-offset: 4px; }
+a:focus-visible, button:focus-visible, select:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 3px solid #ed9b32; outline-offset: 4px; }
 h1, h2, p { margin: 0; }
 h1 { font-size: 30px; letter-spacing: -1px; }
 h2 { font-size: 15px; font-weight: 600; }
@@ -95,6 +95,13 @@ td small { display: block; margin-top: 4px; color: #627085; overflow-wrap: anywh
 .s3 { background: #e7f4ed; color: #286548; }
 .empty { color: #627085; padding: 28px 12px; }
 .page-footer { display: flex; justify-content: space-between; margin-top: 22px; color: #627085; font-size: 10px; }
+
+/* Saved findings and their expandable evidence. */
+.findings-results { margin-top: 16px; }
+.finding-entry { border-top: 1px solid #dfe5ed; padding: 16px 0 0; margin-top: 16px; overflow-wrap: anywhere; }
+.finding-entry h3 { margin: 0; font-size: 16px; }
+.finding-entry summary { min-height: 44px; padding: 11px 0; color: #1e5798; cursor: pointer; }
+.finding-entry summary:focus-visible { outline-offset: -2px; }
 
 /* Deployment scope and saved scan details. */
 .status-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 18px 0 0; }

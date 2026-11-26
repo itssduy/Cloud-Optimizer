@@ -43,7 +43,7 @@
                     {% endtimezone %}
                 {% endif %}
                 {% if scan_state == "completed" or scan_state == "partial" %}
-                    <a class="status-link" href="{% url 'home' %}#findings">View saved findings <span aria-hidden="true">→</span></a>
+                    <a class="status-link" href="{% url 'findings' %}">View saved findings <span aria-hidden="true">→</span></a>
                 {% endif %}
             </section>
 
