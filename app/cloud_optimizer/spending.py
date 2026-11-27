@@ -1,9 +1,9 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from botocore.exceptions import BotoCoreError, ClientError
 from django.shortcuts import render
-from django.utils.dateparse import parse_datetime
+from django.utils.dateparse import parse_date, parse_datetime
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_safe
 
@@ -33,12 +33,15 @@ def page(request):
 def signed_in_page(request):
     days = 7 if request.GET.get("days") == "7" else 30
     today = datetime.now(timezone.utc).date()
-    start = today - timedelta(days=days)
-    end = today - timedelta(days=1)
-    records = [record for record in data.costs() if record["date"] <= end.isoformat()]
+    billing_day = selected_day(request, today)
+    end = billing_day or today - timedelta(days=1)
+    start = end - timedelta(days=days - 1)
+    records = data.costs(through=end)
     services = sorted({service for record in records for service in (record.get("by_service") or {})})
     service = request.GET.get("service", "")
-    if service not in services:
+    if billing_day and service and service not in services:
+        services.append(service)
+    elif service not in services:
         service = ""
     period = [record for record in records if record["date"] >= start.isoformat()]
     rows = daily_rows(period, start, days, service)
@@ -57,7 +60,7 @@ def signed_in_page(request):
 
     return render(request, TEMPLATE, {
         "me": request.user_info, "account_id": data.account_id(),
-        "days": days, "start": start, "end": end, "service": service, "services": services,
+        "days": days, "start": start, "end": end, "billing_day": billing_day, "service": service, "services": services,
         "rows": rows, "day_count": len(observed), "billing_day_count": len(period),
         "total": sum(row["amount"] for row in observed) if observed else None,
         "currency": observed[0]["currency"] if observed else None,
@@ -68,6 +71,16 @@ def signed_in_page(request):
         "calculated_at": parse_datetime(savings.get("calculated_at") or ""),
         "savings_findings": savings_findings,
     })
+
+
+def selected_day(request, today):
+    try:
+        day = parse_date(request.GET.get("day", ""))
+    except ValueError:
+        return None
+    if day and date.min + timedelta(days=29) <= day < today:
+        return day
+    return None
 
 
 def daily_rows(records, start, days, service):

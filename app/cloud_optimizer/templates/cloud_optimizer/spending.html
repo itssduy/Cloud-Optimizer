@@ -7,7 +7,7 @@
 {% block dashboard_content %}
     <div class="page-heading">
         <h1>Spending</h1>
-        <a class="status-link" href="{% url 'home' %}#alerts">Spending alerts</a>
+        <a class="status-link" href="{% url 'alerts' %}">Spending alerts</a>
     </div>
     {% if spending_error %}
         <p class="notice">{{ spending_error }}</p>
@@ -20,6 +20,7 @@
             <div><span class="label">Billing fetched · UTC</span><strong>{{ fetched_at|utc|date:"M j, Y · H:i"|default:"Unavailable" }}</strong></div>
         </section>
         <form class="billing-filters" method="get" action="{% url 'spending' %}">
+            {% if billing_day %}<input type="hidden" name="day" value="{{ billing_day|date:'Y-m-d' }}">{% endif %}
             <label for="billing-days">Period
                 <select id="billing-days" name="days">
                     <option value="7" {% if days == 7 %}selected{% endif %}>Last 7 days</option>
@@ -33,6 +34,7 @@
                 </select>
             </label>
             <button class="button" type="submit">Apply filters</button>
+            {% if billing_day %}<a class="status-link" href="{% url 'spending' %}?days={{ days }}">View recent billing</a>{% endif %}
         </form>
         {% if billing_error %}<p class="notice">The latest billing fetch failed. Billing figures reflect the last saved data.</p>{% endif %}
 
@@ -91,7 +93,7 @@
                             <thead><tr><th scope="col">Service</th><th scope="col">Saved amount</th></tr></thead>
                             <tbody>
                                 {% for bill in breakdown %}
-                                    <tr><th scope="row"><a href="?days={{ days }}&amp;service={{ bill.service|urlencode }}">{{ bill.service }}</a></th>
+                                    <tr><th scope="row"><a href="?days={{ days }}{% if billing_day %}&amp;day={{ billing_day|date:'Y-m-d' }}{% endif %}&amp;service={{ bill.service|urlencode }}">{{ bill.service }}</a></th>
                                         <td>{{ bill.currency }} {{ bill.amount|floatformat:2 }}{% if bill.estimated %}<small>Includes estimates</small>{% endif %}</td>
                                     </tr>
                                 {% endfor %}

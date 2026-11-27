@@ -77,6 +77,7 @@ main { flex: 1; min-width: 0; }
 .alert-panel > p, .alert-panel > a { font-size: 12px; }
 .alert-panel .muted { margin: 12px 0 20px; }
 .alert-panel > a { font-weight: bold; }
+.alert-links { display: flex; flex-wrap: wrap; column-gap: 16px; }
 
 /* Resource table and simple EC2/S3 filters. */
 .filters { display: flex; gap: 4px; padding: 3px; background: #f0f3f7; border-radius: 5px; }
