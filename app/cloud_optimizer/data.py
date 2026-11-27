@@ -39,9 +39,9 @@ def clean(value):
     return value
 
 
-def _query(prefix, newest_first=False, limit=None, start=None):
+def _query(prefix, newest_first=False, limit=None, start=None, end=None):
     if start:
-        key = Key("pk").eq(schema.account_pk(account_id())) & Key("sk").between(start, prefix + "￿")
+        key = Key("pk").eq(schema.account_pk(account_id())) & Key("sk").between(start, end or prefix + "￿")
     else:
         key = Key("pk").eq(schema.account_pk(account_id())) & Key("sk").begins_with(prefix)
     kwargs = {"KeyConditionExpression": key, "ScanIndexForward": not newest_first}
@@ -52,8 +52,11 @@ def _query(prefix, newest_first=False, limit=None, start=None):
     while True:
         page = table().query(**kwargs)
         for item in page["Items"]:
-            # Scan records list their regions, while resource records use a single region.
-            item_regions = item.get("regions", [item.get("region", current_region)])
+            if prefix == "ACTION#":
+                # Actions store the region on their target.
+                item_regions = [(item.get("target") or {}).get("region")]
+            else:
+                item_regions = item.get("regions", [item.get("region", current_region)])
             if current_region in item_regions:
                 items.append(clean(item))
         if (limit and len(items) >= limit) or "LastEvaluatedKey" not in page:
@@ -108,7 +111,10 @@ def resource(resource_type, resource_id):
     return {
         "resource": clean(item),
         "findings": with_advice(_query(f"FIND#{resource_type}#{region()}#{resource_id}#")),
-        "actions": [a for a in actions() if a["target"]["resource_id"] == resource_id],
+        "actions": [
+            a for a in actions()
+            if a["target"].get("resource_id") == resource_id and a["target"].get("resource_type") == resource_type
+        ],
     }
 
 
@@ -123,7 +129,10 @@ def findings(status="open"):
     return with_advice([f for f in items if status is None or f["status"] == status])
 
 
-def costs(days=30):
+def costs(days=30, through=None):
+    if through:
+        start = through - timedelta(days=days - 1)
+        return _query("COST#", start=schema.cost_sk(start.isoformat()), end=schema.cost_sk(through.isoformat()))
     start = (datetime.now(timezone.utc).date() - timedelta(days=days)).isoformat()
     return _query("COST#", start=schema.cost_sk(start))
 

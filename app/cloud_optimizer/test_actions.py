@@ -56,6 +56,7 @@ class Ec2ActionTests(SimpleTestCase):
         return {"confirmation": page.context["confirmation"], "confirm": "yes"}
 
     def test_stop_then_verify(self):
+        instance_path = self.save_instance()
         r = self.act("stop", request_id="req-00000001")
         self.assertEqual(r.status_code, 202)
         action = r.json()["action"]
@@ -63,15 +64,21 @@ class Ec2ActionTests(SimpleTestCase):
         self.assertEqual(action["change"], {"before": {"state": "running"}, "after": {"state": "stopped"}})
         self.assertEqual(action["outcome"], "unknown")
         self.assertEqual(self.state(), "stopped")
+        history = self.client.get("/activity/")
+        self.assertContains(history, "AWS accepted the request.")
+        self.assertContains(history, f'href="{instance_path}?request=req-00000001"')
 
         checked = self.client.get("/api/actions/req-00000001/").json()["action"]
         self.assertEqual(checked["outcome"], "verified")
         self.assertEqual(checked["observed_state"], "stopped")
+        self.assertContains(self.client.get(instance_path, {"request": "req-00000001"}), "Confirmed stopped")
+        self.assertContains(self.client.get("/activity/?status=verified"), "running → stopped")
 
     def test_start_stopped_instance(self):
         self.ec2.stop_instances(InstanceIds=[self.instance])
         self.assertEqual(self.act("start").status_code, 202)
         self.assertEqual(self.state(), "running")
+        self.assertContains(self.client.get("/activity/?action=ec2_start"), "Start instance</h3>")
 
     def test_not_confirmed_does_nothing(self):
         self.assertEqual(self.act(confirm="no").status_code, 400)

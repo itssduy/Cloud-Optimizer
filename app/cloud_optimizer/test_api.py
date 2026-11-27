@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
@@ -10,7 +10,7 @@ from botocore.exceptions import ClientError
 from django.test import SimpleTestCase
 from moto import mock_aws
 
-from . import users
+from . import data, users
 from .testutils import sign_in
 
 EXAMPLES = Path(__file__).parent / "examples"
@@ -352,10 +352,247 @@ class ApiTests(SimpleTestCase):
         self.assertEqual(body["costs"][0]["total"]["amount"], 4.82)
         self.assertIsNone(body["savings"])
 
+    def seed_billing_day(self, days_ago, services, estimated=False, account=ACCOUNT):
+        date = (datetime.now(timezone.utc).date() - timedelta(days=days_ago)).isoformat()
+        by_service = {
+            name: {"amount": Decimal(amount), "currency": "USD", "estimated": estimated}
+            for name, amount in services.items()
+        }
+        total = {"amount": sum(money["amount"] for money in by_service.values()),
+                 "currency": "USD", "estimated": estimated}
+        self.seed("daily_cost", pk=f"ACCT#{account}", sk=f"COST#{date}", date=date,
+                  total=total, by_service=by_service)
+
+    def test_spending_filters_saved_dates_and_service_amounts(self):
+        compute = "Amazon Elastic Compute Cloud - Compute"
+        self.seed_billing_day(1, {compute: "10.10"}, estimated=True)
+        self.seed_billing_day(2, {compute: "0"})
+        self.seed_billing_day(5, {"Amazon Simple Storage Service": "-1.20"})
+        self.seed_billing_day(12, {"AWS Lambda": "4"})
+        self.seed_billing_day(0, {"Unfinished billing day": "100"})
+        self.seed_billing_day(1, {"Different account service": "100"}, account="999999999999")
+
+        week = self.client.get("/spending/", {"days": 7})
+        for text in ("USD 8.90", "USD 0.00", "USD -1.20", "3 of 7 days", "Includes estimated billing",
+                     "Some billing days are missing", "AWS Cost Explorer", "Billing fetched", "All regions"):
+            self.assertContains(week, text)
+        self.assertNotContains(week, "Unfinished billing day")
+        self.assertNotContains(week, "Different account service")
+        self.assertContains(self.get("/spending/"), "USD 12.90")
+
+        selected = self.client.get("/spending/", {"days": 7, "service": compute})
+        self.assertContains(selected, "USD 10.10")
+        self.assertContains(selected, "No service entry")
+        self.assertNotContains(selected, "USD 8.90")
+        older = self.client.get("/spending/", {"days": 7, "service": "AWS Lambda"})
+        self.assertContains(older, "No amounts are saved for this selection")
+        self.assertContains(older, 'value="AWS Lambda" selected')
+
+    def test_spending_shows_projections_and_unpriced_findings(self):
+        self.seed("savings", "resource_ec2", "resource_s3", "finding_ec2_idle")
+        self.seed("finding_s3_tiering", savings_note="Depends on future access patterns")
+        page = self.get("/spending/")
+        for text in ("No billing data is saved", "USD 30.37", "estimated / month", "730 hours",
+                     "Achieved savings · Unavailable", "1 finding without a dollar estimate",
+                     "Depends on future access patterns", "transition request charge"):
+            self.assertContains(page, text)
+        self.assertContains(page, 'href="/ec2/i-0abc123def4567890/"')
+        self.assertContains(page, 'href="/s3/acme-old-logs/"')
+
+        self.seed("savings", finding_count=1, missing_estimate_count=1,
+                  total_monthly={"amount": Decimal("0"), "currency": "USD"})
+        unpriced = self.get("/spending/")
+        self.assertContains(unpriced, "Monthly estimate unavailable")
+        self.assertNotContains(unpriced, "USD 0.00")
+
+    def test_spending_reports_the_latest_billing_failure_and_saved_read_errors(self):
+        self.seed_billing_day(2, {"Amazon Simple Storage Service": "1.20"})
+        self.seed("scan_completed", status="partial", errors=[{"service": "costs", "message": "private diagnostic"}])
+        page = self.get("/spending/")
+        self.assertContains(page, "The latest billing fetch failed")
+        self.assertContains(page, "USD 1.20")
+        self.assertNotContains(page, "private diagnostic")
+
+        error = ClientError({"Error": {"Code": "AccessDenied", "Message": "private diagnostic"}}, "Query")
+        with patch("cloud_optimizer.spending.data.costs", side_effect=error):
+            page = self.get("/spending/")
+        self.assertContains(page, "Saved spending data is temporarily unavailable", status_code=503)
+        self.assertNotContains(page, "private diagnostic", status_code=503)
+
+    def test_spending_requires_login_and_only_reads(self):
+        self.assertContains(self.get("/"), 'href="/spending/">View spending and savings</a>')
+        self.assertEqual(self.client.post("/spending/").status_code, 405)
+        self.client.post("/logout/")
+        with patch("cloud_optimizer.spending.data.costs") as costs:
+            self.assertRedirects(self.get("/spending/"), "/login/", fetch_redirect_response=False)
+            costs.assert_not_called()
+
     def test_alerts_and_actions(self):
         self.seed("alert", "action_ec2_stop")
         self.assertEqual(self.get("/api/alerts/").json()["alerts"][0]["alert_type"], "spend_anomaly")
         self.assertEqual(self.get("/api/actions/").json()["actions"][0]["outcome"], "verified")
+
+    def test_alert_list_and_detail_show_only_scoped_records(self):
+        other_id = "2026-11-06-total"
+        self.seed("alert")
+        self.seed("alert", pk="ACCT#999999999999", sk="ALERT#2026-11-06#total",
+                  alert_id=other_id, explanation="Other account alert")
+
+        listing = self.get("/alerts/")
+        self.assertContains(listing, ACCOUNT)
+        self.assertContains(listing, 'href="/alerts/2026-11-05-total/"')
+        self.assertContains(listing, "Earlier billing day")
+        self.assertContains(listing, "Estimated billing")
+        self.assertNotContains(listing, "Other account alert")
+        self.assertEqual(self.get(f"/alerts/{other_id}/").status_code, 404)
+
+        detail = self.get("/alerts/2026-11-05-total/")
+        for text in ("USD 4.82", "USD 2.10", "14-day average", "AWS Cost Explorer", "Billing fetched",
+                     "Amazon Elastic Compute Cloud - Compute", "View service spending", "Observed at detection"):
+            self.assertContains(detail, text)
+        self.assertContains(detail, 'href="/findings/?service=ec2"')
+        self.assertContains(detail, 'href="/spending/?days=7&amp;day=2026-11-05"')
+
+    def test_alert_spending_link_preserves_the_historical_day_and_service(self):
+        day = (datetime.now(timezone.utc).date() - timedelta(days=35)).isoformat()
+        service = "Amazon Simple Storage Service"
+        self.seed_billing_day(35, {service: "10.50"})
+        self.seed_billing_day(36, {"Amazon EC2": "6.00"})
+        self.seed_billing_day(34, {service: "25.00"})
+        page = self.client.get("/spending/", {"days": 7, "day": day, "service": service})
+        self.assertEqual(page.context["end"].isoformat(), day)
+        self.assertContains(page, "USD 10.50")
+        self.assertContains(page, f'name="day" value="{day}"')
+        self.assertNotContains(page, "USD 25.00")
+        empty = self.client.get("/spending/", {"days": 7, "day": day, "service": "Amazon CloudWatch"})
+        self.assertContains(empty, "Spending · Amazon CloudWatch")
+        self.assertContains(empty, "No amounts are saved for this selection.")
+        older_day = (datetime.now(timezone.utc).date() - timedelta(days=405)).isoformat()
+        older = self.client.get("/spending/", {"days": 7, "day": older_day})
+        self.assertEqual(older.context["end"].isoformat(), older_day)
+        self.assertContains(older, "No billing data is saved for this period.")
+        self.assertEqual(self.client.get("/spending/", {"day": "2026-02-30"}).status_code, 200)
+
+    def test_alerts_distinguish_the_latest_saved_check_states(self):
+        page = self.get("/alerts/")
+        self.assertContains(page, "No saved check")
+        self.assertNotContains(page, "No anomaly detected")
+
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        check_day = (datetime.now(timezone.utc).date() - timedelta(days=2)).isoformat()
+        cases = (
+            ("normal", "No anomaly detected"),
+            ("no_data", "Billing data unavailable"),
+            ("insufficient_history", "Insufficient billing history"),
+            ("stale", "Billing data is stale"),
+            ("billing_failed", "Billing fetch failed"),
+            ("failed", "Spending check failed"),
+        )
+        for outcome, label in cases:
+            with self.subTest(outcome=outcome):
+                check = {"outcome": outcome, "date": check_day, "billing_estimated": True,
+                         "baseline_days": 8, "baseline_window_days": 14}
+                self.seed("scan_completed", sk=f"SCAN#{today}#test", started_at=today,
+                          completed_at=today, spending_check=check)
+                page = self.get("/alerts/")
+                self.assertContains(page, label)
+                if outcome == "normal":
+                    self.assertContains(page, "estimated charges")
+                    self.assertContains(page, "Newer billing days are still unavailable")
+                    self.assertContains(page, "Only 8 of 14 baseline days were available")
+                else:
+                    self.assertNotContains(page, "No anomaly detected")
+
+    def test_alerts_use_legacy_notes_and_errors_without_assuming_a_clean_check(self):
+        self.seed("scan_completed")
+        page = self.get("/alerts/")
+        self.assertContains(page, "Check result unavailable")
+        self.assertContains(page, "The latest audit is overdue")
+        self.assertNotContains(page, "No anomaly detected")
+        self.seed("scan_completed", notes=["spending check: insufficient_history (only 2 of 7 days of history needed)"])
+        self.assertContains(self.get("/alerts/"), "Insufficient billing history")
+        self.seed("scan_completed", errors=[{"service": "anomalies", "message": "private diagnostic"}])
+        page = self.get("/alerts/")
+        self.assertContains(page, "Spending check failed")
+        self.assertNotContains(page, "private diagnostic")
+
+    def test_alert_read_errors_and_signed_out_requests(self):
+        error = ClientError({"Error": {"Code": "AccessDenied", "Message": "private diagnostic"}}, "Query")
+        with patch("cloud_optimizer.alert_pages.data.alerts", side_effect=error):
+            page = self.get("/alerts/")
+        self.assertContains(page, "Saved alerts are temporarily unavailable", status_code=503)
+        self.assertNotContains(page, "private diagnostic", status_code=503)
+        self.assertEqual(self.client.post("/alerts/").status_code, 405)
+        self.client.post("/logout/")
+        self.assertRedirects(self.get("/alerts/"), "/login/", fetch_redirect_response=False)
+        self.assertRedirects(self.get("/alerts/2026-11-05-total/"), "/login/", fetch_redirect_response=False)
+
+    def test_activity_shares_saved_history_with_teammates(self):
+        self.seed("action_ec2_stop", "resource_ec2", "user")
+        page = self.get("/activity/")
+        self.assertContains(self.get("/"), 'href="/activity/"')
+        self.assertContains(page, 'href="/ec2/i-0abc123def4567890/">old-staging-api</a>')
+        self.assertContains(page, "duy@example.com")
+        self.assertContains(page, "Stop instance")
+        self.assertContains(page, "running → stopped")
+        self.assertContains(page, "Nov 6, 2026 · 14:13")
+        self.assertContains(page, "EC2 reported the requested state at the last check.")
+        self.assertIn("no-store", page["Cache-Control"])
+
+    def test_activity_filters_pending_denied_failed_and_partial_records(self):
+        self.seed("action_ec2_stop", sk="ACTION#2026-11-07T14:12:00Z#accepted",
+                  action_type="ec2_start", outcome="unknown", request_status="sent")
+        self.seed("action_ec2_stop", sk="ACTION#2026-11-08T14:12:00Z#denied",
+                  outcome="failed", request_status="failed", request_error="UnauthorizedOperation")
+        self.seed("action_ec2_stop", sk="ACTION#2026-11-09T14:12:00Z#failed",
+                  outcome="failed", request_status="failed", request_error="IncorrectInstanceState")
+        self.seed("action_ec2_stop", sk="ACTION#2026-11-10T14:12:00Z#partial",
+                  target={"resource_type": "ec2_instance", "region": "us-east-1", "resource_id": "i-deadbeef"},
+                  requested_at="2026-11-31T14:12:00Z", outcome_checked_at=None, requested_by=None,
+                  change=None, outcome=None, request_status=None, observed_state=None)
+        page = self.get("/activity/")
+        self.assertEqual([row["status"] for row in page.context["rows"]], ["Unavailable", "Failed", "Denied", "Pending"])
+        partial = page.context["rows"][0]
+        self.assertEqual(partial["resource"], "i-deadbeef")
+        self.assertFalse(partial["resource_url"])
+        self.assertIsNone(partial["actor"])
+        self.assertIsNone(partial["requested_at"])
+        self.assertContains(page, "AWS accepted the request. The outcome is awaiting verification.")
+        self.assertContains(page, "The instance changed state before AWS could apply the request.")
+        denied = self.client.get("/activity/", {"service": "ec2", "resource": "ABC123", "action": "ec2_stop", "status": "denied"})
+        self.assertEqual(len(denied.context["rows"]), 1)
+        self.assertContains(denied, "AWS denied access to this resource or action.")
+        self.assertNotContains(denied, "Start instance</h3>")
+        self.assertContains(self.get("/activity/?service=s3"), "No actions match these filters.")
+
+    def test_action_history_scope_is_applied_before_the_limit(self):
+        self.seed("action_ec2_stop")
+        self.seed("action_ec2_stop", sk="ACTION#2026-11-09T14:12:00Z#other-region", action_id="other-region",
+                  target={"resource_type": "ec2_instance", "region": "us-west-2", "resource_id": "i-deadbeef"})
+        self.seed("action_ec2_stop", sk="ACTION#2026-11-09T14:12:00Z#unknown-region", action_id="unknown-region",
+                  target={"resource_type": "ec2_instance", "resource_id": "i-badbeef"})
+        self.seed("action_ec2_stop", pk="ACCT#999999999999", action_id="another-account")
+        self.assertEqual([item["action_id"] for item in data.actions(limit=1)], ["act_e1f04b77"])
+        page = self.get("/activity/")
+        self.assertEqual(len(page.context["rows"]), 1)
+        self.assertNotContains(page, "i-deadbeef")
+        self.assertNotContains(page, "i-badbeef")
+
+    def test_activity_handles_empty_history_and_read_failure(self):
+        self.assertContains(self.get("/activity/"), "No resource actions have been recorded")
+        error = ClientError({"Error": {"Code": "AccessDenied", "Message": "private diagnostic"}}, "Query")
+        with patch("cloud_optimizer.activity.data.actions", side_effect=error):
+            page = self.get("/activity/")
+        self.assertContains(page, "Saved activity is temporarily unavailable", status_code=503)
+        self.assertNotContains(page, "private diagnostic", status_code=503)
+
+    def test_activity_is_read_only_and_requires_active_access(self):
+        self.assertEqual(self.client.post("/activity/").status_code, 405)
+        users.update_user("sub-m@team.com", status="disabled")
+        with patch("cloud_optimizer.activity.data.actions") as read_actions:
+            self.assertRedirects(self.get("/activity/"), "/login/", fetch_redirect_response=False)
+            self.assertRedirects(self.get("/activity/"), "/login/", fetch_redirect_response=False)
+            read_actions.assert_not_called()
 
     def test_store_down_is_503(self):
         self.table.delete()

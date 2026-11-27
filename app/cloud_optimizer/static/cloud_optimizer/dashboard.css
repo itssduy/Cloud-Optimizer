@@ -10,7 +10,7 @@ body {
 }
 a { color: #1e5798; text-decoration: none; }
 a:hover { text-decoration: underline; }
-a:focus-visible, button:focus-visible, select:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 3px solid #ed9b32; outline-offset: 4px; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 3px solid #ed9b32; outline-offset: 4px; }
 h1, h2, p { margin: 0; }
 h1 { font-size: 30px; letter-spacing: -1px; }
 h2 { font-size: 15px; font-weight: 600; }
@@ -40,11 +40,9 @@ small { font-size: 11px; }
 .logo { display: inline-block; padding: 7px 5px; border: 1px solid #d59335; border-radius: 5px; color: #ffb34d; font-size: 12px; }
 .nav-label { margin: 42px 12px 12px; color: #92a3b9; font-size: 10px; letter-spacing: 1.5px; }
 .sidebar nav { display: flex; flex-direction: column; gap: 5px; }
-.sidebar nav a, .disabled { min-height: 44px; padding: 11px 13px; border-radius: 4px; color: #c4cdda; }
+.sidebar nav a { min-height: 44px; padding: 11px 13px; border-radius: 4px; color: #c4cdda; }
 .sidebar nav a:hover { background: #243950; text-decoration: none; }
 .sidebar nav .active { color: white; background: #2b4057; border-left: 3px solid #ffb34d; padding-left: 10px; }
-.disabled { display: flex; justify-content: space-between; color: #93a4b8; }
-.disabled small { color: #a9b6c5; }
 .sidebar-footer { margin-top: auto; padding: 20px 10px 0; border-top: 1px solid #354659; font-size: 12px; }
 
 /* Main content: context, summary cards, then two larger panels. */
@@ -77,6 +75,7 @@ main { flex: 1; min-width: 0; }
 .alert-panel > p, .alert-panel > a { font-size: 12px; }
 .alert-panel .muted { margin: 12px 0 20px; }
 .alert-panel > a { font-weight: bold; }
+.alert-links { display: flex; flex-wrap: wrap; column-gap: 16px; }
 
 /* Resource table and simple EC2/S3 filters. */
 .filters { display: flex; gap: 4px; padding: 3px; background: #f0f3f7; border-radius: 5px; }
@@ -103,6 +102,22 @@ td small { display: block; margin-top: 4px; color: #627085; overflow-wrap: anywh
 .finding-entry summary { min-height: 44px; padding: 11px 0; color: #1e5798; cursor: pointer; }
 .finding-entry summary:focus-visible { outline-offset: -2px; }
 
+/* Daily billing chart and filters. */
+.billing-columns { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+.billing-filters select { max-width: 100%; }
+.billing-filters label { min-width: 0; }
+.billing-chart { display: flex; gap: 2px; margin-top: 18px; }
+.billing-chart-day { flex: 1; min-width: 0; }
+.billing-positive { display: flex; align-items: flex-end; height: 7rem; border-bottom: 1px solid #8b98a8; }
+.billing-negative { height: 7rem; }
+.billing-bar { display: block; width: 100%; background: #467bb1; }
+.billing-bar.estimated { background: #ba6e17; }
+.billing-zero { height: 3px; }
+.billing-axis { display: flex; justify-content: space-between; font-size: 12px; }
+.billing-details summary { min-height: 44px; padding: 11px 0; color: #1e5798; cursor: pointer; }
+.billing-details summary:focus-visible { outline-offset: -2px; }
+.billing-columns th[scope="row"], [aria-label="Savings findings"] th[scope="row"] { overflow-wrap: anywhere; }
+
 /* Deployment scope and saved scan details. */
 .status-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 18px 0 0; }
 .status-details dd { margin: 0; font-weight: bold; overflow-wrap: anywhere; }
@@ -115,10 +130,10 @@ td small { display: block; margin-top: 4px; color: #627085; overflow-wrap: anywh
 .ec2-name { min-width: 0; overflow-wrap: anywhere; }
 .ec2-inventory table { min-width: 34rem; table-layout: fixed; }
 .ec2-inventory th:first-child { width: 42%; }
-.ec2-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
-.ec2-controls label { color: #57667a; font-size: 12px; }
-.ec2-controls select { display: block; min-height: 44px; margin-top: 4px; padding: 6px 10px; border: 1px solid #8b98a8; border-radius: 5px; background: white; color: #192b40; font: inherit; }
-.ec2-controls button { border: 0; font: inherit; font-weight: bold; cursor: pointer; }
+.ec2-controls, .billing-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.ec2-controls label, .billing-filters label { color: #57667a; font-size: 12px; }
+.ec2-controls select, .billing-filters select, .activity-filters input { display: block; min-height: 44px; margin-top: 4px; padding: 6px 10px; border: 1px solid #8b98a8; border-radius: 5px; background: white; color: #192b40; font: inherit; }
+.ec2-controls button, .billing-filters button { border: 0; font: inherit; font-weight: bold; cursor: pointer; }
 .ec2-controls .status-link { margin-top: 0; }
 .ec2-finding { margin-top: 12px; }
 .ec2-finding h3 { margin: 0 0 4px; font-size: 14px; }
@@ -182,8 +197,8 @@ button.access-action:disabled { background: #f1d8b5; cursor: wait; }
     body { display: block; }
     .sidebar { width: 100%; height: auto; position: static; padding: 16px; }
     .sidebar nav { flex-direction: row; overflow-x: auto; margin-top: 14px; }
-    .sidebar nav a, .disabled { white-space: nowrap; padding: 10px 12px; }
-    .nav-label, .sidebar-footer, .disabled { display: none; }
+    .sidebar nav a { white-space: nowrap; padding: 10px 12px; }
+    .nav-label, .sidebar-footer { display: none; }
     .topbar { padding: 15px 18px; }
     .page { padding: 24px 18px; }
     .page-heading { align-items: flex-start; flex-direction: column; gap: 14px; }

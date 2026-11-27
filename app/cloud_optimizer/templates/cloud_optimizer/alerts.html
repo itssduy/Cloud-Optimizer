@@ -1,0 +1,106 @@
+{% extends "cloud_optimizer/dashboard_layout.html" %}
+{% load tz %}
+
+{% block title %}Spending alerts · Cloud Optimizer{% endblock %}
+{% block section_name %}Alerts{% endblock %}
+
+{% block dashboard_content %}
+    {% if alert %}
+        {% with record=alert.record %}
+            <a class="status-link" href="{% url 'alerts' %}">← All spending alerts</a>
+            <div class="page-heading">
+                <h1>Spending alert</h1>
+                {% if alert.day %}<a class="status-link" href="{% url 'spending' %}?days=7&amp;day={{ alert.day|date:'Y-m-d' }}">View this billing period</a>{% endif %}
+            </div>
+            <section class="scan-strip" aria-label="Alert scope">
+                <div><span class="label">AWS account</span><strong>{{ account_id }} · Account-wide</strong></div>
+                <div><span class="label">Billing day · UTC</span><strong>{{ alert.day|date:"M j, Y"|default:"Unavailable" }}</strong></div>
+                <div><span class="label">Detected · UTC</span><strong>{{ alert.detected_at|utc|date:"M j, Y · H:i"|default:"Unavailable" }}</strong></div>
+                <span class="badge">{{ record.status|capfirst|default:"Status unavailable" }}</span>
+                {% if record.actual.estimated %}<span class="badge status-warning">Estimated billing</span>{% endif %}
+                {% if alert.earlier %}<span class="badge">Earlier billing day</span>{% endif %}
+            </section>
+            <section class="panel" aria-labelledby="spending-comparison">
+                <h2 id="spending-comparison">Spending comparison</h2>
+                <dl class="status-details">
+                    <div><dt class="label">Observed at detection</dt><dd>{% if record.actual.amount != None %}{{ record.actual.currency }} {{ record.actual.amount|floatformat:2 }}{% else %}Unavailable{% endif %}</dd></div>
+                    <div><dt class="label">Expected baseline average</dt><dd>{% if record.expected.amount != None %}{{ record.expected.currency }} {{ record.expected.amount|floatformat:2 }}{% else %}Unavailable{% endif %}</dd></div>
+                </dl>
+                <p class="status-note">{{ record.explanation|default:"Saved explanation unavailable." }}</p>
+                <p class="muted status-note">
+                    {% if record.baseline_days %}Baseline used {{ record.baseline_days }} billing days. {% endif %}
+                    {% if record.source == "cost_explorer" %}AWS Cost Explorer.{% endif %}
+                    {% if billed_at %} Billing fetched {{ billed_at|utc|date:"M j, Y · H:i" }} UTC.{% endif %}
+                </p>
+            </section>
+            <section class="panel status-note" aria-labelledby="contributing-services">
+                <h2 id="contributing-services">Contributing services</h2>
+                {% for item in contributors %}
+                    <article class="finding-entry">
+                        <h3>{{ item.service }}</h3>
+                        <dl class="status-details">
+                            <div><dt class="label">Observed</dt><dd>{% if item.actual.amount != None %}{{ item.actual.currency }} {{ item.actual.amount|floatformat:2 }}{% else %}Unavailable{% endif %}</dd></div>
+                            <div><dt class="label">Expected</dt><dd>{% if item.expected.amount != None %}{{ item.expected.currency }} {{ item.expected.amount|floatformat:2 }}{% else %}Unavailable{% endif %}</dd></div>
+                        </dl>
+                        <div class="alert-links">
+                            {% if alert.day %}<a class="status-link" aria-label="View service spending for {{ item.service }}" href="{% url 'spending' %}?days=7&amp;day={{ alert.day|date:'Y-m-d' }}&amp;service={{ item.service|urlencode }}">View service spending</a>{% endif %}
+                            {% if item.findings_service %}<a class="status-link" href="{% url 'findings' %}?service={{ item.findings_service }}">Browse {{ item.findings_service|upper }} findings</a>{% endif %}
+                        </div>
+                    </article>
+                {% empty %}
+                    <p class="empty">No service breakdown is saved for this alert.</p>
+                {% endfor %}
+            </section>
+        {% endwith %}
+    {% else %}
+        <div class="page-heading">
+            <h1>Spending alerts</h1>
+            <a class="status-link" href="{% url 'spending' %}">View spending</a>
+        </div>
+        {% if alert_error %}
+            <p class="notice">{{ alert_error }}</p>
+        {% else %}
+            <section class="scan-strip" aria-label="Latest spending check">
+                <div><span class="label">AWS account</span><strong>{{ account_id }} · Account-wide</strong></div>
+                <div><span class="label">Last checked billing day · UTC</span><strong>{{ checked_day|date:"M j, Y"|default:"Unavailable" }}</strong></div>
+                {% if check_time %}<div><span class="label">Audit finished · UTC</span><strong>{{ check_time|utc|date:"M j, Y · H:i" }}</strong></div>{% endif %}
+                {% if check_billed_at %}<div><span class="label">Billing fetched · UTC</span><strong>{{ check_billed_at|utc|date:"M j, Y · H:i" }}</strong></div>{% endif %}
+                <span class="badge">{{ check_label }}</span>
+            </section>
+            <p class="status-note">{{ check_message }}</p>
+            {% if overdue %}<p class="notice">The latest audit is overdue. Saved results may be stale.</p>{% endif %}
+            {% if billing_delayed %}<p class="notice">Newer billing days are still unavailable.</p>{% endif %}
+            {% if check.billing_estimated %}<p class="notice">The last checked billing day still contains estimated charges.</p>{% endif %}
+            {% if check.baseline_window_days and check.baseline_days < check.baseline_window_days %}
+                <p class="notice">Only {{ check.baseline_days }} of {{ check.baseline_window_days }} baseline days were available.</p>
+            {% endif %}
+            <section class="panel status-note" aria-labelledby="saved-alerts">
+                <h2 id="saved-alerts">Saved alerts</h2>
+                {% for row in alerts %}
+                    {% with record=row.record %}
+                        <article class="finding-entry">
+                            <div class="section-heading">
+                                <h3><a href="{% url 'alert_detail' record.alert_id %}">Spending on {{ row.day|date:"M j, Y"|default:"an unavailable date" }}</a></h3>
+                                <div>
+                                    <span class="badge">{{ record.status|capfirst|default:"Status unavailable" }}</span>
+                                    {% if record.actual.estimated %}<span class="badge status-warning">Estimated billing</span>{% endif %}
+                                    {% if row.earlier %}<span class="badge">Earlier billing day</span>{% endif %}
+                                </div>
+                            </div>
+                            <p class="status-note">
+                                Observed {% if record.actual.amount != None %}{{ record.actual.currency }} {{ record.actual.amount|floatformat:2 }}{% else %}unavailable{% endif %}
+                                · Expected {% if record.expected.amount != None %}{{ record.expected.currency }} {{ record.expected.amount|floatformat:2 }}{% else %}unavailable{% endif %}
+                            </p>
+                            {% if record.top_services %}
+                                <p class="status-note">{% for item in record.top_services %}{{ item.service }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+                            {% endif %}
+                            <p class="muted status-note">Detected · {{ row.detected_at|utc|date:"M j, Y · H:i"|default:"Time unavailable" }} UTC</p>
+                        </article>
+                    {% endwith %}
+                {% empty %}
+                    <p class="empty">No spending alerts are saved.</p>
+                {% endfor %}
+            </section>
+        {% endif %}
+    {% endif %}
+{% endblock %}

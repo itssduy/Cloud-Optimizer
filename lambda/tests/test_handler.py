@@ -95,6 +95,40 @@ class HandlerTests(unittest.TestCase):
         self.assertEqual(result["status"], "completed")
         self.assertEqual(self.items("FIND#"), [])
         self.assertEqual(self.items("RES#ec2_instance")[0]["last_check"]["outcome"], "clean")
+        check = self.items("SCAN#")[0]["spending_check"]
+        self.assertEqual(check["outcome"], "normal")
+        self.assertEqual(check["baseline_days"], 14)
+        self.assertFalse(check["billing_estimated"])
+
+    def test_spike_check_and_its_alert_are_saved_without_duplicates(self):
+        cost_explorer = mock.Mock()
+        response = FakeCE().get_cost_and_usage()
+        latest = response["ResultsByTime"][0]
+        latest["Estimated"] = True
+        latest["Groups"][0]["Metrics"]["UnblendedCost"]["Amount"] = "8"
+        cost_explorer.get_cost_and_usage.return_value = response
+
+        self.run_audit(ce=cost_explorer)
+        self.run_audit(now=NOW + timedelta(hours=1), ce=cost_explorer)
+        alert, = self.items("ALERT#")
+        check = self.items("SCAN#")[-1]["spending_check"]
+        self.assertEqual(check["outcome"], "alert")
+        self.assertEqual(check["date"], alert["date"])
+        self.assertEqual(check["billing_fetched_at"], handler.iso(NOW + timedelta(hours=1)))
+        self.assertTrue(check["billing_estimated"])
+        self.assertEqual(str(alert["actual"]["amount"]), "8.00")
+        self.assertEqual(str(alert["expected"]["amount"]), "2.00")
+        self.assertEqual(alert["created_at"], handler.iso(NOW))
+
+    def test_insufficient_history_saves_coverage(self):
+        cost_explorer = mock.Mock()
+        cost_explorer.get_cost_and_usage.return_value = {"ResultsByTime": FakeCE().get_cost_and_usage()["ResultsByTime"][:3]}
+        self.run_audit(ce=cost_explorer)
+        check = self.items("SCAN#")[0]["spending_check"]
+        self.assertEqual(check["outcome"], "insufficient_history")
+        self.assertEqual(check["baseline_days"], 2)
+        self.assertEqual(check["baseline_window_days"], 14)
+        self.assertEqual(self.items("ALERT#"), [])
 
     def test_no_metrics_is_counted_not_clean(self):
         result = self.run_audit()
@@ -140,6 +174,14 @@ class HandlerTests(unittest.TestCase):
         self.assertEqual(result["status"], "partial")
         self.assertEqual(result["errors"][0]["service"], "costs")
         self.assertEqual(len(self.items("FIND#")), 1)
+        self.assertEqual(self.items("SCAN#")[0]["spending_check"]["outcome"], "billing_failed")
+
+    def test_detector_read_failure_records_failed_check(self):
+        error = ClientError({"Error": {"Code": "AccessDenied", "Message": "no cost history"}}, "Query")
+        with mock.patch.object(handler.Audit, "update_alerts", side_effect=error):
+            result = self.run_audit()
+        self.assertEqual(result["status"], "partial")
+        self.assertEqual(self.items("SCAN#")[0]["spending_check"]["outcome"], "failed")
 
     def test_s3_denied_keeps_old_s3_findings(self):
         self.table.put_item(Item={"pk": PK, "sk": "FIND#s3_bucket#us-east-1#team-logs#s3_tiering_candidate",
