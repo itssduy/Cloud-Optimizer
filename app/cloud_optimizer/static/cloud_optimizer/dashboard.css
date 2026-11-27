@@ -103,6 +103,22 @@ td small { display: block; margin-top: 4px; color: #627085; overflow-wrap: anywh
 .finding-entry summary { min-height: 44px; padding: 11px 0; color: #1e5798; cursor: pointer; }
 .finding-entry summary:focus-visible { outline-offset: -2px; }
 
+/* Daily billing chart and filters. */
+.billing-columns { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+.billing-filters select { max-width: 100%; }
+.billing-filters label { min-width: 0; }
+.billing-chart { display: flex; gap: 2px; margin-top: 18px; }
+.billing-chart-day { flex: 1; min-width: 0; }
+.billing-positive { display: flex; align-items: flex-end; height: 7rem; border-bottom: 1px solid #8b98a8; }
+.billing-negative { height: 7rem; }
+.billing-bar { display: block; width: 100%; background: #467bb1; }
+.billing-bar.estimated { background: #ba6e17; }
+.billing-zero { height: 3px; }
+.billing-axis { display: flex; justify-content: space-between; font-size: 12px; }
+.billing-details summary { min-height: 44px; padding: 11px 0; color: #1e5798; cursor: pointer; }
+.billing-details summary:focus-visible { outline-offset: -2px; }
+.billing-columns th[scope="row"], [aria-label="Savings findings"] th[scope="row"] { overflow-wrap: anywhere; }
+
 /* Deployment scope and saved scan details. */
 .status-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 18px 0 0; }
 .status-details dd { margin: 0; font-weight: bold; overflow-wrap: anywhere; }
@@ -115,10 +131,10 @@ td small { display: block; margin-top: 4px; color: #627085; overflow-wrap: anywh
 .ec2-name { min-width: 0; overflow-wrap: anywhere; }
 .ec2-inventory table { min-width: 34rem; table-layout: fixed; }
 .ec2-inventory th:first-child { width: 42%; }
-.ec2-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
-.ec2-controls label { color: #57667a; font-size: 12px; }
-.ec2-controls select { display: block; min-height: 44px; margin-top: 4px; padding: 6px 10px; border: 1px solid #8b98a8; border-radius: 5px; background: white; color: #192b40; font: inherit; }
-.ec2-controls button { border: 0; font: inherit; font-weight: bold; cursor: pointer; }
+.ec2-controls, .billing-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.ec2-controls label, .billing-filters label { color: #57667a; font-size: 12px; }
+.ec2-controls select, .billing-filters select { display: block; min-height: 44px; margin-top: 4px; padding: 6px 10px; border: 1px solid #8b98a8; border-radius: 5px; background: white; color: #192b40; font: inherit; }
+.ec2-controls button, .billing-filters button { border: 0; font: inherit; font-weight: bold; cursor: pointer; }
 .ec2-controls .status-link { margin-top: 0; }
 .ec2-finding { margin-top: 12px; }
 .ec2-finding h3 { margin: 0 0 4px; font-size: 14px; }

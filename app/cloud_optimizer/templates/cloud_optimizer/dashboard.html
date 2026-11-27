@@ -71,6 +71,7 @@
                 <p class="empty">Spending data is unavailable.</p>
             {% endfor %}
             {% if spending %}<p class="footnote">AWS Cost Explorer · {{ spending.total.currency }}</p>{% endif %}
+            {% if not sample %}<a class="status-link" href="{% url 'spending' %}">View spending and savings</a>{% endif %}
         </section>
         <section class="panel alert-panel" id="alerts">
             <div class="section-heading"><h2>Spending alert</h2>{% if alert %}<span class="alert-icon" aria-hidden="true">!</span>{% endif %}</div>

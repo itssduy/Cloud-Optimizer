@@ -1,0 +1,156 @@
+{% extends "cloud_optimizer/dashboard_layout.html" %}
+{% load tz %}
+
+{% block title %}Spending · Cloud Optimizer{% endblock %}
+{% block section_name %}Spending{% endblock %}
+
+{% block dashboard_content %}
+    <div class="page-heading">
+        <h1>Spending</h1>
+        <a class="status-link" href="{% url 'home' %}#alerts">Spending alerts</a>
+    </div>
+    {% if spending_error %}
+        <p class="notice">{{ spending_error }}</p>
+        <a class="status-link" href="{{ request.get_full_path }}">Reload saved results</a>
+    {% else %}
+        <section class="scan-strip" aria-label="Billing scope">
+            <div><span class="label">AWS account</span><strong>{{ account_id }} · All regions</strong></div>
+            <div><span class="label">Reporting period · UTC</span><strong>{{ start|date:"M j, Y" }} – {{ end|date:"M j, Y" }}</strong></div>
+            <div><span class="label">Billing source</span><strong>AWS Cost Explorer · Unblended cost</strong></div>
+            <div><span class="label">Billing fetched · UTC</span><strong>{{ fetched_at|utc|date:"M j, Y · H:i"|default:"Unavailable" }}</strong></div>
+        </section>
+        <form class="billing-filters" method="get" action="{% url 'spending' %}">
+            <label for="billing-days">Period
+                <select id="billing-days" name="days">
+                    <option value="7" {% if days == 7 %}selected{% endif %}>Last 7 days</option>
+                    <option value="30" {% if days == 30 %}selected{% endif %}>Last 30 days</option>
+                </select>
+            </label>
+            <label for="billing-service">Service
+                <select id="billing-service" name="service">
+                    <option value="">All services</option>
+                    {% for name in services %}<option value="{{ name }}" {% if name == service %}selected{% endif %}>{{ name }}</option>{% endfor %}
+                </select>
+            </label>
+            <button class="button" type="submit">Apply filters</button>
+        </form>
+        {% if billing_error %}<p class="notice">The latest billing fetch failed. Billing figures reflect the last saved data.</p>{% endif %}
+
+        <div class="columns billing-columns">
+            <section class="panel" aria-labelledby="daily-spending">
+                <h2 id="daily-spending">Spending · {{ service|default:"All services" }}</h2>
+                {% if total != None %}
+                    <p class="number">{{ currency }} {{ total|floatformat:2 }}</p>
+                    <p class="muted">Total for {{ day_count }} of {{ days }} days with saved amounts{% if has_estimates %} · Includes estimated billing{% endif %}</p>
+                    {% if billing_day_count < days %}<p class="notice">Some billing days are missing or still pending.</p>{% endif %}
+                    <div class="billing-chart" aria-hidden="true">
+                        {% for row in rows %}
+                            <div class="billing-chart-day" title="{{ row.date|date:'M j' }} · {% if row.amount != None %}{{ row.currency }} {{ row.amount|floatformat:2 }} · {% endif %}{{ row.status }}">
+                                <div class="billing-positive">
+                                    {% if row.amount > 0 %}<span class="billing-bar {{ row.status|lower }}" style="height: {{ row.bar_height }}%"></span>
+                                    {% elif row.amount == 0 %}<span class="billing-bar {{ row.status|lower }} billing-zero"></span>{% endif %}
+                                </div>
+                                {% if has_credits %}
+                                    <div class="billing-negative">
+                                        {% if row.amount < 0 %}<span class="billing-bar {{ row.status|lower }}" style="height: {{ row.bar_height }}%"></span>{% endif %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <div class="billing-axis muted" aria-hidden="true"><span>{{ start|date:"M j" }}</span><span>{{ end|date:"M j" }}</span></div>
+                    <p class="footnote">Orange bars show estimated billing. Gaps show unavailable amounts.{% if has_credits %} Bars below the line show negative net charges.{% endif %}</p>
+                    <details class="status-note billing-details">
+                        <summary>Daily amounts and billing status</summary>
+                        <div class="table-scroll" role="region" aria-label="Daily amounts" tabindex="0">
+                            <table>
+                                <thead><tr><th scope="col">Date · UTC</th><th scope="col">Amount</th><th scope="col">Billing status</th></tr></thead>
+                                <tbody>
+                                    {% for row in rows %}
+                                        <tr><th scope="row">{{ row.date|date:"M j" }}</th>
+                                            <td>{% if row.amount != None %}{{ row.currency }} {{ row.amount|floatformat:2 }}{% else %}—{% endif %}</td>
+                                            <td>{{ row.status }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </details>
+                {% elif billing_day_count %}
+                    <p class="empty">No amounts are saved for this selection.</p>
+                {% else %}
+                    <p class="empty">No billing data is saved for this period.</p>
+                {% endif %}
+            </section>
+
+            <section class="panel" aria-labelledby="spending-by-service">
+                <h2 id="spending-by-service">Spending by service</h2>
+                {% if breakdown %}
+                    <div class="table-scroll" role="region" aria-label="Spending by service" tabindex="0">
+                        <table>
+                            <thead><tr><th scope="col">Service</th><th scope="col">Saved amount</th></tr></thead>
+                            <tbody>
+                                {% for bill in breakdown %}
+                                    <tr><th scope="row"><a href="?days={{ days }}&amp;service={{ bill.service|urlencode }}">{{ bill.service }}</a></th>
+                                        <td>{{ bill.currency }} {{ bill.amount|floatformat:2 }}{% if bill.estimated %}<small>Includes estimates</small>{% endif %}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="empty">No service amounts are saved for this period.</p>
+                {% endif %}
+            </section>
+        </div>
+
+        <section class="panel" aria-labelledby="potential-savings">
+            <div class="section-heading">
+                <h2 id="potential-savings">Potential monthly savings</h2>
+                <a class="status-link" href="{% url 'findings' %}">View findings</a>
+            </div>
+            {% if monthly and monthly.amount != None %}
+                <p class="number">{{ monthly.currency }} {{ monthly.amount|floatformat:2 }} <small>estimated / month</small></p>
+            {% else %}
+                <p class="status-note">Monthly estimate unavailable.</p>
+            {% endif %}
+            {% if calculated_at %}<p class="muted">All open findings · Calculated {{ calculated_at|utc|date:"M j, Y · H:i" }} UTC</p>{% endif %}
+            {% if savings.missing_estimate_count %}
+                <p class="status-note">{{ savings.missing_estimate_count }} finding{{ savings.missing_estimate_count|pluralize }} without a dollar estimate.</p>
+            {% endif %}
+            <p class="status-note muted">Achieved savings · Unavailable</p>
+            {% if savings.assumptions %}
+                <details class="status-note billing-details">
+                    <summary>Savings assumptions</summary>
+                    <ul>{% for assumption in savings.assumptions %}<li>{{ assumption }}</li>{% endfor %}</ul>
+                </details>
+            {% endif %}
+            {% if savings_findings %}
+                <div class="table-scroll" role="region" aria-label="Savings findings" tabindex="0">
+                    <table>
+                        <thead><tr><th scope="col">Resource</th><th scope="col">Savings evidence</th></tr></thead>
+                        <tbody>
+                            {% for row in savings_findings %}
+                                {% with finding=row.finding benefit=row.finding.advice.benefit %}
+                                    <tr>
+                                        <th scope="row">
+                                            {% if row.resource_url %}<a href="{{ row.resource_url }}">{{ row.name }}</a>
+                                            {% else %}{{ row.name }}{% endif %}
+                                        </th>
+                                        <td>
+                                            {% if benefit.monthly and benefit.monthly.amount != None %}
+                                                {{ benefit.monthly.currency }} {{ benefit.monthly.amount|floatformat:2 }} / month estimated
+                                            {% else %}Estimate unavailable{% endif %}
+                                            {% if benefit.note %}<small>{{ benefit.note|capfirst }}</small>{% endif %}
+                                            {% if finding.advice.charges %}<small>{{ finding.advice.charges }}</small>{% endif %}
+                                        </td>
+                                    </tr>
+                                {% endwith %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
+        </section>
+    {% endif %}
+{% endblock %}
