@@ -66,6 +66,28 @@ What the scan can and can't tell you:
 
 Run `terraform apply` again. It rebuilds the image only if the app code changed, and redeploys.
 
+## Verify the test deployment
+
+Run these in the `infra` folder used to deploy the stack. Use the URL and region from those outputs.
+
+```bash
+terraform output -raw app_url
+terraform output -raw aws_region
+```
+
+1. Record the running ECS image tag. Open the dashboard and sign in with an admin-created test account. On **Deployment status**, confirm the deployment account and region.
+2. After the next scheduled audit, match the scan ID and UTC time from the Lambda logs to the latest scan in `/api/scans/`. Check the scan status on the dashboard and open an EC2 and an S3 finding. A manual audit can help with setup. Use the scheduled run for this check.
+3. Use the team's designated test instance and bucket. Review and confirm an EC2 stop, then start it again. Review the S3 cleanup and tiering changes separately and compare the saved lifecycle configuration with the previous rules. Check **Activity** for the requester, target and outcome of each confirmed request. The saved S3 rule confirms configuration and S3 handles eligible objects and uploads later.
+4. Check the filters and request details using the keyboard and a narrow browser. Sign out and verify that opening Activity prompts for sign-in.
+
+Keep the scan ID, running image tag, action outcomes and reporting dates with the deployment evidence. [Deployment acceptance issue](https://github.com/itssduy/Cloud-Optimizer/issues/30)
+
+### Compare one billing period
+
+1. In Cost Explorer, choose seven complete UTC billing days within the last 30 days. Select the deployment's linked account, **Daily** granularity, **Unblended cost**, and **Service** grouping. Use all charge types for that account. Export the report as CSV. [AWS CSV export instructions](https://docs.aws.amazon.com/cost-management/latest/userguide/ce-download-csv.html)
+2. In the signed-in dashboard, open `/spending/?days=7&day=YYYY-MM-DD` with the last day of that period. Use `/api/costs/` to check the saved daily service amounts and billing fetch time. Compare those amounts with the export and then with the Spending summary, daily table and service totals. The audit rounds each day's service amount to cents before summing.
+3. Record the dates, currency, fetch time, and any differences. For estimated days, compare after the next billing refresh if the source figures have changed. [Spending acceptance issue](https://github.com/itssduy/Cloud-Optimizer/issues/34)
+
 ## Backups
 
 DynamoDB point-in-time recovery is on, so the table can be restored to any second in the last 35 days. To restore into a new table:
