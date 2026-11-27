@@ -1,13 +1,14 @@
 import json
 import os
 import uuid
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from unittest import mock
 
 import boto3
 from botocore.exceptions import ClientError
-from django.test import SimpleTestCase
+from django.test import Client, SimpleTestCase
 from moto import mock_aws
 
 from . import lifecycle, users
@@ -36,6 +37,9 @@ class LifecycleTests(SimpleTestCase):
         self.s3.create_bucket(Bucket=BUCKET)
         self.add_finding("finding_s3_incomplete_uploads")
         self.add_finding("finding_s3_tiering")
+        resource = json.loads((EXAMPLES / "resource_s3.json").read_text(), parse_float=Decimal)
+        resource.update(resource_id=BUCKET, sk=f"RES#s3_bucket#us-east-1#{BUCKET}")
+        self.table.put_item(Item=resource)
         sign_in(self.client)
 
     def add_finding(self, name, bucket=BUCKET, **changes):
@@ -141,3 +145,91 @@ class LifecycleTests(SimpleTestCase):
         self.client.post("/logout/")
         self.assertEqual(self.preview().status_code, 401)
         self.assertEqual(self.client.post(self.url(), {"rule": "s3_incomplete_uploads", "confirm": "yes"}).status_code, 401)
+
+    def test_bucket_review_confirms_once_and_links_to_saved_result(self):
+        url = f"/s3/{BUCKET}/"
+        client = Client(enforce_csrf_checks=True)
+        sign_in(client)
+        review = client.get(url, {"review": "s3_incomplete_uploads"})
+        self.assertContains(review, "All key prefixes")
+        self.assertContains(review, "Days after initiation")
+        self.assertEqual(self.saved_rules(), [])
+        form = {"confirmation": review.context["confirmation"], "confirm": "yes"}
+        self.assertEqual(client.post(url, form).status_code, 403)
+        form["csrfmiddlewaretoken"] = client.cookies["csrftoken"].value
+        self.assertContains(client.post(url, {**form, "confirm": "no"}), "Confirm the rule", status_code=400)
+        self.assertEqual(self.saved_rules(), [])
+
+        response = client.post(url, form)
+        self.assertEqual(response.status_code, 302)
+        outcome = response["Location"]
+        self.assertContains(client.get(outcome), "Rule saved and verified")
+        self.assertContains(client.get(url), f'href="?{outcome.split("?", 1)[1]}"')
+        self.assertEqual(client.post(url, form)["Location"], outcome)
+        self.assertEqual(len(self.saved_rules()), 1)
+        self.assertEqual(len(client.get("/api/actions/").json()["actions"]), 1)
+        review = client.get(url, {"review": "s3_incomplete_uploads"})
+        self.assertContains(review, "S3 already has a rule with this ID")
+        self.assertNotContains(review, "Confirm and apply rule")
+
+    def test_bucket_review_rejects_concurrent_and_stale_changes(self):
+        url = f"/s3/{BUCKET}/"
+        review = self.client.get(url, {"review": "s3_tiering_candidate"})
+        self.assertContains(review, "Larger than 131072 bytes")
+        form = {"confirmation": review.context["confirmation"], "confirm": "yes"}
+        lock = {"pk": f"ACCT#{ACCOUNT}", "sk": f"S3LIFECYCLE#us-east-1#{BUCKET}"}
+        self.table.put_item(Item={**lock, "expires_at": int(lifecycle.time()) + 100})
+        self.assertContains(self.client.post(url, form), "Another lifecycle request", status_code=409)
+        self.assertEqual(self.saved_rules(), [])
+        self.table.delete_item(Key=lock)
+        self.s3.put_bucket_lifecycle_configuration(Bucket=BUCKET, LifecycleConfiguration={"Rules": [EXISTING]})
+        self.assertContains(self.client.post(url, form), "The proposal or lifecycle configuration changed", status_code=409)
+        self.assertEqual(self.saved_rules(), [EXISTING])
+
+        review = self.client.get(url, {"review": "s3_tiering_candidate"})
+        response = self.client.post(url, {"confirmation": review.context["confirmation"], "confirm": "yes"}, follow=True)
+        # Moto omits the object-size filter from lifecycle reads.
+        self.assertContains(response, "Verification pending")
+        self.assertEqual(self.saved_rules()[1]["Transitions"][0]["StorageClass"], "INTELLIGENT_TIERING")
+        applied = response.context["action_record"]["change"]["after"]["rules"]
+        with mock.patch.object(lifecycle, "current_configuration", return_value={"Rules": applied}):
+            self.assertContains(self.client.get(response.redirect_chain[-1][0]), "Rule saved and verified")
+
+    def test_bucket_outcome_can_verify_after_a_failed_read_back(self):
+        url = f"/s3/{BUCKET}/"
+        review = self.client.get(url, {"review": "s3_incomplete_uploads"})
+        read_failed = ClientError({"Error": {"Code": "SlowDown", "Message": "try again"}},
+                                  "GetBucketLifecycleConfiguration")
+        with mock.patch.object(lifecycle, "current_configuration", side_effect=[{"Rules": []}, read_failed, read_failed]):
+            response = self.client.post(url, {"confirmation": review.context["confirmation"], "confirm": "yes"})
+            self.assertContains(self.client.get(response["Location"]), "Verification pending")
+
+        self.assertEqual(len(self.saved_rules()), 1)
+        self.assertContains(self.client.get(response["Location"]), "Rule saved and verified")
+
+    def test_bucket_outcome_explains_access_denial(self):
+        url = f"/s3/{BUCKET}/"
+        review = self.client.get(url, {"review": "s3_incomplete_uploads"})
+        denied = ClientError({"Error": {"Code": "AccessDenied", "Message": "denied"}}, "PutBucketLifecycleConfiguration")
+        with mock.patch.object(lifecycle, "s3", return_value=self.s3):
+            with mock.patch.object(self.s3, "put_bucket_lifecycle_configuration", side_effect=denied):
+                response = self.client.post(url, {"confirmation": review.context["confirmation"], "confirm": "yes"}, follow=True)
+        self.assertContains(response, "S3 denied the change")
+        self.assertEqual(self.saved_rules(), [])
+
+    def test_apply_preserves_existing_rules_and_bucket_transition_default(self):
+        # Moto returns a fixed transition default. Simulate a bucket with a different default.
+        prior = {**EXISTING, "Expiration": {"Date": datetime(2028, 1, 1, tzinfo=timezone.utc)}}
+        configuration = {"Rules": [prior], "TransitionDefaultMinimumObjectSize": "varies_by_storage_class"}
+        with mock.patch.object(lifecycle, "current_configuration", return_value=configuration):
+            rule = self.preview().json()["proposed_rule"]
+            with mock.patch.object(lifecycle, "s3", return_value=self.s3):
+                with mock.patch.object(self.s3, "put_bucket_lifecycle_configuration") as put:
+                    response = self.apply()
+        self.assertEqual(response.status_code, 202)
+        put.assert_called_once_with(
+            Bucket=BUCKET, ExpectedBucketOwner=ACCOUNT, LifecycleConfiguration={"Rules": [prior, rule]},
+            TransitionDefaultMinimumObjectSize="varies_by_storage_class",
+        )
+        record = response.json()["action"]
+        self.assertEqual(record["change"]["before"]["rules"][0]["Expiration"]["Date"], "2028-01-01T00:00:00Z")

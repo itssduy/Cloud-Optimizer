@@ -212,12 +212,13 @@ class ApiTests(SimpleTestCase):
 
     def test_s3_saved_rule_review_expires_with_the_finding(self):
         self.seed("resource_s3", "scan_completed", "finding_s3_incomplete_uploads", "finding_s3_tiering")
+        boto3.client("s3", region_name="us-east-1").create_bucket(Bucket="acme-old-logs")
         page = self.get("/s3/acme-old-logs/?review=s3_incomplete_uploads")
         self.assertContains(page, "DaysAfterInitiation")
         self.assertContains(page, "acme-old-logs")
-        self.assertContains(page, "Applying lifecycle rules is unavailable")
+        self.assertContains(page, "Confirm and apply rule")
         self.assertContains(page, "observations may be stale")
-        self.assertEqual(self.client.post("/s3/acme-old-logs/", {"confirm": "yes"}).status_code, 405)
+        self.assertEqual(self.client.post("/s3/acme-old-logs/", {"confirm": "yes"}).status_code, 400)
         self.seed("finding_s3_incomplete_uploads", status="resolved")
         self.assertEqual(self.get("/s3/acme-old-logs/?review=s3_incomplete_uploads").status_code, 404)
         self.assertContains(self.get("/s3/acme-old-logs/?review=s3_tiering_candidate"), "INTELLIGENT_TIERING")

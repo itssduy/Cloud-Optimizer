@@ -33,7 +33,17 @@
                 {% elif bucket.details.has_lifecycle_rules == False %}No lifecycle rules were present at the last observation.
                 {% else %}Lifecycle information is unavailable.{% endif %}
             </p>
-            <p class="status-note muted">Applying lifecycle rules is unavailable for this installation.</p>
+            {% if recent_actions %}
+                <h3 class="status-note">Recent lifecycle requests</h3>
+                <ul class="ec2-requests">
+                    {% for record in recent_actions %}
+                        <li>
+                            <a class="status-link" href="?request={{ record.action_id|urlencode }}">{{ record.title }} · {{ record.requested_at|utc|date:"M j, H:i" }} UTC</a>
+                            <span class="muted">{% if record.outcome == "verified" %}Verified{% elif record.outcome == "failed" %}Failed{% else %}Pending{% endif %}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
         </section>
     </div>
 

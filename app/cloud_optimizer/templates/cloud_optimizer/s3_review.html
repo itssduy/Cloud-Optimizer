@@ -1,29 +1,75 @@
 {% extends "cloud_optimizer/dashboard_layout.html" %}
 {% load tz %}
 
-{% block title %}Review S3 rule · Cloud Optimizer{% endblock %}
+{% block title %}S3 lifecycle rule · Cloud Optimizer{% endblock %}
 {% block section_name %}S3 buckets{% endblock %}
 
 {% block dashboard_content %}
     <a class="status-link" href="{% url 's3_detail' bucket.resource_id %}">← Return to bucket</a>
-    <h1>Review proposed rule</h1>
-    <section class="scan-strip" aria-label="Proposed change target">
+    <h1>{% if action_record %}Lifecycle rule outcome{% else %}Review proposed rule{% endif %}</h1>
+    <section class="scan-strip" aria-label="Lifecycle rule target">
         <div class="s3-name"><span class="label">Bucket</span><strong>{{ bucket.resource_id }}</strong></div>
         <div><span class="label">AWS account</span><strong>{{ account_id }}</strong></div>
         <div><span class="label">Region</span><strong>{{ region }}</strong></div>
     </section>
-    {% include "cloud_optimizer/s3_scan_notice.html" %}
     <section class="panel">
-        <h2>{{ title }}</h2>
-        <p class="status-note">{{ finding.recommendation.text }}</p>
-        <p class="status-note muted">Saved proposal observed {{ detected_at|utc|date:"M j, Y · H:i"|default:"at an unavailable time" }} UTC.</p>
-        {% if finding.rule == "s3_incomplete_uploads" %}
-            <p class="status-note">The age setting determines when eligible incomplete multipart uploads can be cleaned up.</p>
-        {% elif finding.rule == "s3_tiering_candidate" %}
-            <p class="status-note">Intelligent-Tiering includes monitoring charges for eligible objects. Access patterns and achieved savings require further measurement.</p>
+        {% if review_error %}
+            <p class="notice">{{ review_error }}</p>
+            {% if retry_rule %}<a class="status-link" href="?review={{ retry_rule|urlencode }}">Review current proposal</a>{% endif %}
+        {% elif action_record %}
+            <h2>{{ title }}</h2>
+            {% if action_record.outcome == "verified" %}
+                <p class="badge ec2-result">Rule saved and verified</p>
+                <p class="status-note">S3 reported the reviewed rule in the bucket configuration{% if checked_at %} at {{ checked_at|utc|date:"M j, Y · H:i" }} UTC{% endif %}.</p>
+                <p class="status-note">S3 processes eligible uploads or objects separately. Any savings depend on what S3 processes and future usage.</p>
+            {% elif action_record.outcome == "failed" %}
+                <p class="notice">{% if access_denied %}S3 denied the change. Ask your deployment operator to check lifecycle permissions.{% else %}S3 could not confirm that it accepted the change. Check the bucket configuration before trying again.{% endif %}</p>
+            {% else %}
+                <p class="badge ec2-result">Verification pending</p>
+                <p class="status-note">{% if action_record.request_status == "sent" %}S3 accepted the request. The reviewed rule has yet to be verified in the bucket configuration.{% else %}The dashboard is waiting for S3 to respond.{% endif %}</p>
+                <a class="status-link" href="?request={{ action_record.action_id|urlencode }}">Check outcome</a>
+            {% endif %}
+            <dl class="status-details">
+                <div><dt class="label">Request ID</dt><dd>{{ action_record.action_id }}</dd></div>
+                <div><dt class="label">Requested at · UTC</dt><dd>{{ requested_at|utc|date:"M j, Y · H:i" }}</dd></div>
+            </dl>
+        {% else %}
+            <h2>{{ title }}</h2>
+            <p class="status-note">{{ finding.recommendation.text }}</p>
+            <p class="status-note muted">Finding observed · {{ detected_at|utc|date:"M j, Y · H:i"|default:"Time unavailable" }} UTC</p>
+            {% include "cloud_optimizer/s3_scan_notice.html" %}
+            <dl class="status-details">
+                <div><dt class="label">Key prefix</dt><dd>
+                    {% if proposal.proposed_rule.Filter.Prefix %}{{ proposal.proposed_rule.Filter.Prefix }}
+                    {% elif proposal.proposed_rule.Filter.And.Prefix %}{{ proposal.proposed_rule.Filter.And.Prefix }}
+                    {% else %}All key prefixes{% endif %}
+                </dd></div>
+                <div><dt class="label">Current S3 lifecycle rules</dt><dd>{{ proposal.current_rules|length }}</dd></div>
+                {% if finding.rule == "s3_incomplete_uploads" %}
+                    <div><dt class="label">Eligible uploads</dt><dd>Incomplete multipart uploads</dd></div>
+                    <div><dt class="label">Days after initiation</dt><dd>{{ proposal.proposed_rule.AbortIncompleteMultipartUpload.DaysAfterInitiation }}</dd></div>
+                {% elif finding.rule == "s3_tiering_candidate" %}
+                    <div><dt class="label">Eligible objects</dt><dd>Larger than {{ proposal.proposed_rule.Filter.ObjectSizeGreaterThan }} bytes</dd></div>
+                    <div><dt class="label">Days after object creation</dt><dd>{{ proposal.proposed_rule.Transitions.0.Days }}</dd></div>
+                {% endif %}
+            </dl>
+            <p class="status-note">{{ proposal.effect }}</p>
+            <p class="status-note">{{ proposal.charges }}</p>
+            <details class="status-note">
+                <summary>Exact lifecycle rule</summary>
+                <pre class="s3-rule" tabindex="0">{{ rule_json }}</pre>
+            </details>
+            {% if confirmation %}
+                <p class="status-note">Confirm to add this rule alongside the bucket’s existing lifecycle rules.</p>
+                <form method="post" action="{% url 's3_detail' bucket.resource_id %}" class="ec2-controls status-note">
+                    {% csrf_token %}
+                    <input type="hidden" name="confirmation" value="{{ confirmation }}">
+                    <a class="status-link" href="{% url 's3_detail' bucket.resource_id %}">Cancel</a>
+                    <button class="button" type="submit" name="confirm" value="yes">Confirm and apply rule</button>
+                </form>
+            {% else %}
+                <p class="notice">S3 already has a rule with this ID. Check its current settings in the S3 console.</p>
+            {% endif %}
         {% endif %}
-        <pre class="s3-rule" tabindex="0" aria-label="Saved proposed lifecycle rule">{{ rule_json }}</pre>
-        <p class="notice">Applying lifecycle rules is unavailable for this installation.</p>
-        <a class="status-link" href="{% url 's3_detail' bucket.resource_id %}">Return to bucket</a>
     </section>
 {% endblock %}

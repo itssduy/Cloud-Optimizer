@@ -137,13 +137,19 @@ def action_status(request, request_id):
     return JsonResponse(result, status=status)
 
 
-def check_action(request_id, instance_id=None):
-    if not REQUEST_ID.match(request_id):
-        return error("not_found", 404)
+def get_action(request_id):
+    if not REQUEST_ID.fullmatch(request_id):
+        return None
     t = table()
     pk = schema.account_pk(data.account_id())
-    ref = t.get_item(Key={"pk": pk, "sk": f"ACTIONREQ#{request_id}"}).get("Item")
-    item = t.get_item(Key={"pk": pk, "sk": ref["action_sk"]}).get("Item") if ref else None
+    ref = t.get_item(Key={"pk": pk, "sk": f"ACTIONREQ#{request_id}"}, ConsistentRead=True).get("Item")
+    if ref:
+        return t.get_item(Key={"pk": pk, "sk": ref["action_sk"]}, ConsistentRead=True).get("Item")
+    return None
+
+
+def check_action(request_id, instance_id=None):
+    item = get_action(request_id)
     if not item:
         return error("not_found", 404)
     target = item["target"]
@@ -161,5 +167,5 @@ def check_action(request_id, instance_id=None):
         item["outcome_checked_at"] = now()
         if state == item["change"]["after"]["state"]:
             item["outcome"] = "verified"
-        t.put_item(Item=item)
+        table().put_item(Item=item)
     return {"action": data.clean(item)}, 200
