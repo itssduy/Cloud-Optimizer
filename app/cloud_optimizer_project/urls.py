@@ -5,6 +5,7 @@ from cloud_optimizer import actions, api, dashboard, ec2_pages, lifecycle, s3_pa
 urlpatterns = [
     path('', views.home, name='home'),
     path('status/', dashboard.deployment_status, name='deployment_status'),
+    path('findings/', dashboard.findings_page, name='findings'),
     path('ec2/', ec2_pages.page, name='ec2_inventory'),
     path('ec2/<str:instance_id>/', ec2_pages.page, name='ec2_detail'),
     path('s3/', s3_pages.page, name='s3_inventory'),

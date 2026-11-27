@@ -31,7 +31,11 @@
                    {% if request.resolver_match.url_name == 's3_inventory' %}class="active" aria-current="page"
                    {% elif request.resolver_match.url_name == 's3_detail' %}class="active" aria-current="location"{% endif %}>S3 buckets</a>
             {% endif %}
-            <a href="{{ overview_url }}?service=all#findings">Findings</a>
+            {% if sample %}
+                <a href="{{ overview_url }}?service=all#findings">Findings</a>
+            {% else %}
+                <a href="{% url 'findings' %}" {% if request.resolver_match.url_name == 'findings' %}class="active" aria-current="page"{% endif %}>Findings</a>
+            {% endif %}
             <a href="{{ overview_url }}#spending">Spending</a>
             <a href="{{ overview_url }}#alerts">Alerts</a>
             <span class="disabled">Activity <small>Later</small></span>

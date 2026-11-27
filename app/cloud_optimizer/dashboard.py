@@ -6,6 +6,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from django.conf import settings
 from django.http import Http404
 from django.shortcuts import render
+from django.urls import reverse
 from django.utils.dateparse import parse_date, parse_datetime
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_safe
@@ -14,7 +15,9 @@ from . import auth, data
 
 TEMPLATE = "cloud_optimizer/dashboard.html"
 STATUS_TEMPLATE = "cloud_optimizer/deployment_status.html"
+FINDINGS_TEMPLATE = "cloud_optimizer/findings.html"
 SERVICE_NAMES = {"ec2_instance": "EC2", "s3_bucket": "S3"}
+RESOURCE_PAGES = {"ec2_instance": "ec2_detail", "s3_bucket": "s3_detail"}
 SCAN_STATES = {
     "no_scan": ("No saved scan", "Reload after the scheduled audit runs."),
     "pending": ("Pending", "The saved status shows the audit is waiting to start."),
@@ -113,6 +116,50 @@ def signed_in_status(request):
     return render(request, STATUS_TEMPLATE, context)
 
 
+@require_safe
+@never_cache
+def findings_page(request):
+    try:
+        return signed_in_findings(request)
+    except (BotoCoreError, ClientError):
+        message = "Saved findings are temporarily unavailable. Reload to try again."
+    except KeyError as error:
+        if error.args not in (("AWS_ACCOUNT_ID",), ("DYNAMODB_TABLE_NAME",)):
+            raise
+        message = "Ask your deployment operator to check the app configuration."
+    return render(request, FINDINGS_TEMPLATE, {
+        "me": getattr(request, "user_info", None), "findings_error": message,
+    }, status=503)
+
+
+@auth.login_required
+def signed_in_findings(request):
+    service = request.GET.get("service", "all")
+    if service not in ("all", "ec2", "s3"):
+        service = "all"
+    finding_status = request.GET.get("status", "open")
+    if finding_status not in ("open", "resolved"):
+        finding_status = "open"
+
+    status = data.status()
+    scan = status["latest_scan"] or {}
+    scan_label, scan_message = SCAN_STATES.get(status["scan_state"], SCAN_STATES["unavailable"])
+    rows = finding_rows(data.resources(), data.findings(status=finding_status), service)
+    rows.sort(key=lambda row: row["finding"].get("last_detected_at") or "", reverse=True)
+    for row in rows:
+        row["seen_at"] = parse_datetime(row["finding"].get("last_detected_at") or "")
+        row["resolved_at"] = parse_datetime(row["finding"].get("resolved_at") or "")
+
+    return render(request, FINDINGS_TEMPLATE, {
+        "me": request.user_info, "account_id": status["account_id"], "region": status["region"],
+        "scan": scan, "scan_state": status["scan_state"], "scan_label": scan_label,
+        "scan_message": scan_message, "overdue": status["overdue"],
+        "scan_finished_at": parse_datetime(scan.get("completed_at") or ""),
+        "scan_started_at": parse_datetime(scan.get("started_at") or ""),
+        "service": service, "finding_status": finding_status, "rows": rows,
+    })
+
+
 def read_example(name):
     path = Path(__file__).parent / "examples" / (name + ".json")
     return json.loads(path.read_text())
@@ -141,29 +188,35 @@ def preview(request):
     return render_dashboard(request, context, resources, findings, alerts)
 
 
-def render_dashboard(request, context, resources, findings, alerts):
-    service = request.GET.get("service", "all")
-    if service not in ("all", "ec2", "s3"):
-        service = "all"
-
+def finding_rows(resources, findings, service):
     # Look up each resource name. A finding can outlast its inventory record.
     names = {}
     for resource in resources:
         key = (resource["resource_type"], resource["region"], resource["resource_id"])
-        names[key] = resource["name"]
+        names[key] = resource.get("name")
 
     rows = []
     for finding in findings:
         key = (finding["resource_type"], finding["region"], finding["resource_id"])
         label = SERVICE_NAMES.get(finding["resource_type"], finding["resource_type"])
-        if service == "all" or label.lower() == service:
-            rows.append({
-                "name": names.get(key) or finding["resource_id"],
-                "has_resource": key in names,
-                "service": label,
-                "finding": finding,
-            })
+        if service != "all" and label.lower() != service:
+            continue
+        page = RESOURCE_PAGES.get(finding["resource_type"])
+        resource_url = reverse(page, args=[finding["resource_id"]]) if page and key in names else ""
+        rows.append({
+            "name": names.get(key) or finding["resource_id"],
+            "resource_url": resource_url,
+            "service": label,
+            "finding": finding,
+        })
+    return rows
 
+
+def render_dashboard(request, context, resources, findings, alerts):
+    service = request.GET.get("service", "all")
+    if service not in ("all", "ec2", "s3"):
+        service = "all"
+    rows = finding_rows(resources, findings, service)
     scan = context.get("scan")
     if scan and scan.get("completed_at"):
         context["scan_time"] = parse_datetime(scan["completed_at"])

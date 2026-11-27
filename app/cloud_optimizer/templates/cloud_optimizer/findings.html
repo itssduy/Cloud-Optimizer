@@ -1,0 +1,89 @@
+{% extends "cloud_optimizer/dashboard_layout.html" %}
+{% load tz %}
+
+{% block title %}Findings · Cloud Optimizer{% endblock %}
+{% block section_name %}Findings{% endblock %}
+
+{% block dashboard_content %}
+    <div class="page-heading">
+        <h1>Findings</h1>
+        <a class="status-link" href="{{ request.get_full_path }}">Reload saved results</a>
+    </div>
+    {% if findings_error %}
+        <p class="notice">{{ findings_error }}</p>
+    {% else %}
+        <section class="scan-strip" aria-label="Deployment and scan status">
+            <div><span class="label">AWS account</span><strong>{{ account_id }}</strong></div>
+            <div><span class="label">Region</span><strong>{{ region }}</strong></div>
+            {% if scan_finished_at %}
+                <div><span class="label">Scan finished · UTC</span><strong>{{ scan_finished_at|utc|date:"M j, Y · H:i" }}</strong></div>
+            {% elif scan_started_at %}
+                <div><span class="label">Scan started · UTC</span><strong>{{ scan_started_at|utc|date:"M j, Y · H:i" }}</strong></div>
+            {% endif %}
+            <span class="badge">{{ scan_label }}</span>
+        </section>
+        {% if scan_state != "completed" %}<p class="notice">{{ scan_message }}</p>{% endif %}
+        {% if overdue %}<p class="notice">The daily scan is overdue. Saved observations may be stale.</p>{% endif %}
+        {% if scan.insufficient_data_count %}
+            <p class="notice">{{ scan.insufficient_data_count }} resource check{{ scan.insufficient_data_count|pluralize }} had insufficient data.</p>
+        {% endif %}
+
+        <section class="panel findings-results" aria-labelledby="saved-findings">
+            <h2 id="saved-findings">Saved findings</h2>
+            <div class="section-heading status-note">
+                <nav class="filters" aria-label="Filter by service">
+                    <a href="?service=all&amp;status={{ finding_status }}" {% if service == "all" %}aria-current="true"{% endif %}>All services</a>
+                    <a href="?service=ec2&amp;status={{ finding_status }}" {% if service == "ec2" %}aria-current="true"{% endif %}>EC2</a>
+                    <a href="?service=s3&amp;status={{ finding_status }}" {% if service == "s3" %}aria-current="true"{% endif %}>S3</a>
+                </nav>
+                <nav class="filters" aria-label="Filter by status">
+                    <a href="?service={{ service }}&amp;status=open" {% if finding_status == "open" %}aria-current="true"{% endif %}>Open</a>
+                    <a href="?service={{ service }}&amp;status=resolved" {% if finding_status == "resolved" %}aria-current="true"{% endif %}>Resolved</a>
+                </nav>
+            </div>
+            {% for row in rows %}
+                {% with finding=row.finding advice=row.finding.advice savings=row.finding.advice.benefit.monthly %}
+                    <article class="finding-entry">
+                        <div class="section-heading">
+                            <h3>{% if row.resource_url %}<a href="{{ row.resource_url }}">{{ row.name }}</a>{% else %}{{ row.name }}{% endif %}</h3>
+                            <div><span class="service-tag {{ row.service|lower }}">{{ row.service }}</span> <span class="badge">{{ finding.status|capfirst }}</span></div>
+                        </div>
+                        <p class="muted">
+                            {% if row.name != finding.resource_id %}{{ finding.resource_id }} · {% endif %}
+                            {% if row.seen_at %}Last observed {{ row.seen_at|utc|date:"M j, Y · H:i" }} UTC{% else %}Observation time unavailable{% endif %}
+                            {% if row.resolved_at %} · Resolved {{ row.resolved_at|utc|date:"M j, Y · H:i" }} UTC
+                            {% elif scan.scan_id and finding.scan_id and scan.scan_id != finding.scan_id %} · From an earlier scan{% endif %}
+                        </p>
+                        <p class="status-note">{{ finding.reason|default:"Evidence unavailable." }}</p>
+                        {% if advice.next_step %}
+                            <p class="status-note"><strong>{% if finding.status == "resolved" %}Previous recommendation{% else %}Suggested next step{% endif %}</strong> · {{ advice.next_step }}</p>
+                        {% endif %}
+                        <p class="muted status-note">
+                            {% if savings and savings.amount != None %}
+                                {% if finding.status == "resolved" %}Previous estimate{% else %}Potential savings{% endif %} · {{ savings.currency }} {{ savings.amount|floatformat:2 }} / month
+                            {% else %}Monthly savings estimate unavailable{% endif %}
+                        </p>
+                        <details>
+                            <summary>Evidence and assumptions</summary>
+                            {% if advice.observed and advice.observed != finding.reason %}<p>{{ advice.observed }}</p>{% endif %}
+                            {% if advice.why %}<p class="status-note">{{ advice.why }}</p>{% endif %}
+                            {% if advice.charges %}<p class="status-note">{{ advice.charges }}</p>{% endif %}
+                            {% if advice.benefit.note %}<p class="status-note">{{ advice.benefit.note|capfirst }}</p>{% endif %}
+                            {% if advice.limitations %}
+                                <ul>
+                                    {% for limitation in advice.limitations %}<li>{{ limitation }}</li>{% endfor %}
+                                </ul>
+                            {% endif %}
+                        </details>
+                    </article>
+                {% endwith %}
+            {% empty %}
+                <p class="empty">
+                    {% if service != "all" or finding_status == "resolved" %}No {{ finding_status }} findings match these filters.
+                    {% elif scan_state == "completed" and scan.finding_count == 0 and not overdue and not scan.insufficient_data_count %}No open findings in the latest completed scan.
+                    {% else %}No open findings are saved.{% endif %}
+                </p>
+            {% endfor %}
+        </section>
+    {% endif %}
+{% endblock %}

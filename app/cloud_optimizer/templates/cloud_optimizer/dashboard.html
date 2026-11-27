@@ -3,7 +3,7 @@
 {% block dashboard_content %}
     <div class="page-heading">
         <div><p class="eyebrow">AWS RESOURCE OPTIMIZATION</p><h1>Overview</h1></div>
-        <a class="button" href="#findings">Review findings <span aria-hidden="true">↓</span></a>
+        <a class="button" href="{% if sample %}#findings{% else %}{% url 'findings' %}{% endif %}">Review findings</a>
     </div>
     {% if sample %}<p class="notice">Local preview using EC2 and S3 example records.</p>{% endif %}
 
@@ -104,10 +104,8 @@
                         <tr>
                             <td>
                                 <strong>
-                                    {% if row.service == "EC2" and row.has_resource and not sample %}
-                                        <a href="{% url 'ec2_detail' row.finding.resource_id %}">{{ row.name }}</a>
-                                    {% elif row.service == "S3" and row.has_resource and not sample %}
-                                        <a href="{% url 's3_detail' row.finding.resource_id %}">{{ row.name }}</a>
+                                    {% if row.resource_url and not sample %}
+                                        <a href="{{ row.resource_url }}">{{ row.name }}</a>
                                     {% else %}
                                         {{ row.name }}
                                     {% endif %}

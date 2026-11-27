@@ -75,6 +75,7 @@ class ApiTests(SimpleTestCase):
         self.assertContains(page, "$4.82")
         self.assertContains(page, "Log out")
         self.assertContains(page, 'href="/status/"')
+        self.assertContains(page, 'href="/findings/">Review findings</a>')
         self.assertNotContains(page, "Sample data")
         self.assertNotContains(page, "Team users")
         page = self.get("/?service=ec2")
@@ -262,6 +263,87 @@ class ApiTests(SimpleTestCase):
         self.seed("finding_s3_incomplete_uploads", status="resolved")
         self.assertEqual(len(self.get("/api/findings/").json()["findings"]), 2)
         self.assertEqual(len(self.get("/api/findings/?status=all").json()["findings"]), 3)
+
+    def test_findings_page_shows_scoped_advice_and_resource_links(self):
+        self.seed("scan_completed", "resource_ec2", "resource_s3", "finding_s3_tiering")
+        self.seed("finding_ec2_idle", savings_note="Compute at the on-demand rate for 730 hours")
+        self.seed("finding_s3_incomplete_uploads", pk="ACCT#999999999999", reason="Different account finding")
+        self.seed("finding_s3_incomplete_uploads", sk="FIND#s3_bucket#eu-west-1#other-bucket#s3_incomplete_uploads",
+                  resource_id="other-bucket", region="eu-west-1", reason="Different region finding")
+
+        page = self.get("/findings/")
+        for text in (ACCOUNT, "us-east-1", "Last observed", "168 of 168", "USD 30.37 / month", "730 hours",
+                     "Intelligent-Tiering", "monitoring fee", "Monthly savings estimate unavailable"):
+            self.assertContains(page, text)
+        self.assertContains(page, 'href="/ec2/i-0abc123def4567890/">old-staging-api</a>')
+        self.assertContains(page, 'href="/s3/acme-old-logs/">acme-old-logs</a>')
+        self.assertNotContains(page, "Different account finding")
+        self.assertNotContains(page, "Different region finding")
+        filtered = self.get("/findings/?service=s3&status=open")
+        self.assertContains(filtered, 'href="/findings/?service=s3&amp;status=open">Reload saved results</a>')
+        self.assertNotContains(filtered, "old-staging-api")
+        self.assertContains(self.get("/findings/?service=ec2&status=resolved"), "No resolved findings match these filters.")
+
+    def test_later_scan_updates_one_finding_and_can_resolve_it(self):
+        self.seed("scan_completed", "finding_ec2_idle")
+        self.assertContains(self.get("/findings/"), "Average CPU was 1.2% over the last 7 days")
+
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.seed("scan_completed", sk=f"SCAN#{today}#second-scan", scan_id="second-scan", started_at=today,
+                  completed_at=today, finding_count=1)
+        self.seed("finding_ec2_idle", scan_id="second-scan", reason="Later scan confirmed low CPU",
+                  last_detected_at=today)
+        changed = self.get("/findings/")
+        self.assertContains(changed, "Later scan confirmed low CPU", count=1)
+        self.assertNotContains(changed, "From an earlier scan")
+
+        self.seed("finding_ec2_idle", status="resolved", resolved_at=today, reason="Later scan confirmed low CPU")
+        self.assertNotContains(self.get("/findings/"), "Later scan confirmed low CPU")
+        resolved = self.get("/findings/?service=ec2&status=resolved")
+        self.assertContains(resolved, "Later scan confirmed low CPU", count=1)
+        self.assertContains(resolved, "Previous recommendation")
+        self.assertContains(resolved, "Previous estimate")
+        self.assertNotContains(resolved, 'href="/ec2/i-0abc123def4567890/"')
+
+    def test_findings_page_distinguishes_empty_and_incomplete_scans(self):
+        self.assertContains(self.get("/findings/"), "No saved scan")
+        self.seed("scan_completed", finding_count=0)
+        stale = self.get("/findings/")
+        self.assertContains(stale, "The daily scan is overdue")
+        self.assertNotContains(stale, "No open findings in the latest completed scan")
+
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        scan = {"sk": f"SCAN#{now}#latest", "scan_id": "latest", "started_at": now,
+                "completed_at": now, "finding_count": 0}
+        for state, missing, message in (
+            ("completed", 0, "No open findings in the latest completed scan"),
+            ("completed", 1, "1 resource check had insufficient data"),
+            ("partial", 0, "Some checks did not finish"),
+            ("failed", 0, "Failed</span>"),
+        ):
+            with self.subTest(state=state, missing=missing):
+                self.seed("scan_completed", status=state, insufficient_data_count=missing, **scan)
+                self.assertContains(self.get("/findings/"), message)
+
+        self.seed("finding_ec2_idle", evidence={}, estimated_monthly_savings=None)
+        old = self.get("/findings/")
+        self.assertContains(old, "From an earlier scan")
+        self.assertContains(old, "Evidence is incomplete")
+        self.assertContains(old, "Monthly savings estimate unavailable")
+
+    def test_findings_page_reports_read_error(self):
+        error = ClientError({"Error": {"Code": "AccessDenied", "Message": "private diagnostic"}}, "Query")
+        with patch("cloud_optimizer.dashboard.data.findings", side_effect=error):
+            page = self.get("/findings/")
+        self.assertContains(page, "Saved findings are temporarily unavailable", status_code=503)
+        self.assertNotContains(page, "private diagnostic", status_code=503)
+
+    def test_findings_page_requires_login_and_only_reads(self):
+        self.assertEqual(self.client.post("/findings/").status_code, 405)
+        self.client.post("/logout/")
+        with patch("cloud_optimizer.dashboard.data.status") as status:
+            self.assertRedirects(self.get("/findings/"), "/login/", fetch_redirect_response=False)
+            status.assert_not_called()
 
     def test_costs_and_missing_savings(self):
         today = datetime.now(timezone.utc).date().isoformat()
