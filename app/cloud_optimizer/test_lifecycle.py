@@ -84,6 +84,22 @@ class LifecycleTests(SimpleTestCase):
     def test_tiering_rule(self):
         self.assertEqual(self.apply("s3_tiering_candidate").status_code, 202)
         self.assertEqual(self.saved_rules()[0]["Transitions"][0]["StorageClass"], "INTELLIGENT_TIERING")
+        activity = self.client.get("/activity/?service=s3&action=s3_tiering_candidate")
+        self.assertContains(activity, "Enable Intelligent-Tiering</h3>")
+        self.assertContains(activity, "Transition eligible objects")
+        self.assertContains(activity, "After 0 days")
+        self.assertContains(activity, "Larger than 131072 bytes")
+
+    def test_activity_shows_saved_cleanup_configuration(self):
+        item = json.loads((EXAMPLES / "resource_s3.json").read_text(), parse_float=Decimal)
+        item.update(sk=f"RES#s3_bucket#us-east-1#{BUCKET}", resource_id=BUCKET, name=BUCKET)
+        self.table.put_item(Item=item)
+        self.assertEqual(self.apply(request_id="req-lc-activity").status_code, 202)
+        page = self.client.get("/activity/?status=verified")
+        self.assertContains(page, "S3 confirmed the rule was saved.")
+        self.assertContains(page, "S3 processes eligible objects and uploads later.")
+        self.assertContains(page, "After 7 days")
+        self.assertContains(page, f'href="/s3/{BUCKET}/?request=req-lc-activity"')
 
     def test_declined_does_nothing(self):
         self.assertEqual(self.apply(confirm="no").status_code, 400)

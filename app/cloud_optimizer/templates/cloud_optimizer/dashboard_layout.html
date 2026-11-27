@@ -41,7 +41,9 @@
             <a href="{% if sample %}{{ overview_url }}#alerts{% else %}{% url 'alerts' %}{% endif %}"
                {% if request.resolver_match.url_name == 'alerts' %}class="active" aria-current="page"
                {% elif request.resolver_match.url_name == 'alert_detail' %}class="active" aria-current="location"{% endif %}>Alerts</a>
-            <span class="disabled">Activity <small>Later</small></span>
+            {% if not sample %}
+                <a href="{% url 'activity' %}" {% if request.resolver_match.url_name == 'activity' %}class="active" aria-current="page"{% endif %}>Activity</a>
+            {% endif %}
             <a href="{% if sample %}#scan{% else %}{{ status_url }}{% endif %}" {% if request.resolver_match.url_name == 'deployment_status' %}class="active" aria-current="page"{% endif %}>Deployment status</a>
         </nav>
         <div class="sidebar-footer">EC2 &amp; S3 · AWS</div>

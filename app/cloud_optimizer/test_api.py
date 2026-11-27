@@ -10,7 +10,7 @@ from botocore.exceptions import ClientError
 from django.test import SimpleTestCase
 from moto import mock_aws
 
-from . import users
+from . import data, users
 from .testutils import sign_in
 
 EXAMPLES = Path(__file__).parent / "examples"
@@ -525,6 +525,73 @@ class ApiTests(SimpleTestCase):
         self.client.post("/logout/")
         self.assertRedirects(self.get("/alerts/"), "/login/", fetch_redirect_response=False)
         self.assertRedirects(self.get("/alerts/2026-11-05-total/"), "/login/", fetch_redirect_response=False)
+
+    def test_activity_shares_saved_history_with_teammates(self):
+        self.seed("action_ec2_stop", "resource_ec2", "user")
+        page = self.get("/activity/")
+        self.assertContains(self.get("/"), 'href="/activity/"')
+        self.assertContains(page, 'href="/ec2/i-0abc123def4567890/">old-staging-api</a>')
+        self.assertContains(page, "duy@example.com")
+        self.assertContains(page, "Stop instance")
+        self.assertContains(page, "running → stopped")
+        self.assertContains(page, "Nov 6, 2026 · 14:13")
+        self.assertContains(page, "EC2 reported the requested state at the last check.")
+        self.assertIn("no-store", page["Cache-Control"])
+
+    def test_activity_filters_pending_denied_failed_and_partial_records(self):
+        self.seed("action_ec2_stop", sk="ACTION#2026-11-07T14:12:00Z#accepted",
+                  action_type="ec2_start", outcome="unknown", request_status="sent")
+        self.seed("action_ec2_stop", sk="ACTION#2026-11-08T14:12:00Z#denied",
+                  outcome="failed", request_status="failed", request_error="UnauthorizedOperation")
+        self.seed("action_ec2_stop", sk="ACTION#2026-11-09T14:12:00Z#failed",
+                  outcome="failed", request_status="failed", request_error="IncorrectInstanceState")
+        self.seed("action_ec2_stop", sk="ACTION#2026-11-10T14:12:00Z#partial",
+                  target={"resource_type": "ec2_instance", "region": "us-east-1", "resource_id": "i-deadbeef"},
+                  requested_at="2026-11-31T14:12:00Z", outcome_checked_at=None, requested_by=None,
+                  change=None, outcome=None, request_status=None, observed_state=None)
+        page = self.get("/activity/")
+        self.assertEqual([row["status"] for row in page.context["rows"]], ["Unavailable", "Failed", "Denied", "Pending"])
+        partial = page.context["rows"][0]
+        self.assertEqual(partial["resource"], "i-deadbeef")
+        self.assertFalse(partial["resource_url"])
+        self.assertIsNone(partial["actor"])
+        self.assertIsNone(partial["requested_at"])
+        self.assertContains(page, "AWS accepted the request. The outcome is awaiting verification.")
+        self.assertContains(page, "The instance changed state before AWS could apply the request.")
+        denied = self.client.get("/activity/", {"service": "ec2", "resource": "ABC123", "action": "ec2_stop", "status": "denied"})
+        self.assertEqual(len(denied.context["rows"]), 1)
+        self.assertContains(denied, "AWS denied access to this resource or action.")
+        self.assertNotContains(denied, "Start instance</h3>")
+        self.assertContains(self.get("/activity/?service=s3"), "No actions match these filters.")
+
+    def test_action_history_scope_is_applied_before_the_limit(self):
+        self.seed("action_ec2_stop")
+        self.seed("action_ec2_stop", sk="ACTION#2026-11-09T14:12:00Z#other-region", action_id="other-region",
+                  target={"resource_type": "ec2_instance", "region": "us-west-2", "resource_id": "i-deadbeef"})
+        self.seed("action_ec2_stop", sk="ACTION#2026-11-09T14:12:00Z#unknown-region", action_id="unknown-region",
+                  target={"resource_type": "ec2_instance", "resource_id": "i-badbeef"})
+        self.seed("action_ec2_stop", pk="ACCT#999999999999", action_id="another-account")
+        self.assertEqual([item["action_id"] for item in data.actions(limit=1)], ["act_e1f04b77"])
+        page = self.get("/activity/")
+        self.assertEqual(len(page.context["rows"]), 1)
+        self.assertNotContains(page, "i-deadbeef")
+        self.assertNotContains(page, "i-badbeef")
+
+    def test_activity_handles_empty_history_and_read_failure(self):
+        self.assertContains(self.get("/activity/"), "No resource actions have been recorded")
+        error = ClientError({"Error": {"Code": "AccessDenied", "Message": "private diagnostic"}}, "Query")
+        with patch("cloud_optimizer.activity.data.actions", side_effect=error):
+            page = self.get("/activity/")
+        self.assertContains(page, "Saved activity is temporarily unavailable", status_code=503)
+        self.assertNotContains(page, "private diagnostic", status_code=503)
+
+    def test_activity_is_read_only_and_requires_active_access(self):
+        self.assertEqual(self.client.post("/activity/").status_code, 405)
+        users.update_user("sub-m@team.com", status="disabled")
+        with patch("cloud_optimizer.activity.data.actions") as read_actions:
+            self.assertRedirects(self.get("/activity/"), "/login/", fetch_redirect_response=False)
+            self.assertRedirects(self.get("/activity/"), "/login/", fetch_redirect_response=False)
+            read_actions.assert_not_called()
 
     def test_store_down_is_503(self):
         self.table.delete()
