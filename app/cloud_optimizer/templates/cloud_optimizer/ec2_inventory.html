@@ -13,10 +13,10 @@
 
     <section class="panel ec2-panel">
         <div class="section-heading">
-            <h2>Saved inventory</h2>
+            <h2>Instances</h2>
             {% if has_inventory %}
                 <form method="get" class="ec2-controls">
-                    <label>Saved state
+                    <label>State
                         <select name="state">
                             <option value="">Any state</option>
                             {% for state in states %}
@@ -31,7 +31,7 @@
                             <option value="none" {% if finding_filter == "none" %}selected{% endif %}>No open findings</option>
                         </select>
                     </label>
-                    <button class="button" type="submit">Apply filters</button>
+                    <button class="button" type="submit">Apply</button>
                 </form>
             {% endif %}
         </div>
@@ -40,7 +40,7 @@
                 <table>
                     <caption class="muted">{{ rows|length }} instance{{ rows|length|pluralize }} shown</caption>
                     <thead>
-                        <tr><th scope="col">Instance</th><th scope="col">Type</th><th scope="col">Saved state</th><th scope="col">Findings</th></tr>
+                        <tr><th scope="col">Instance</th><th scope="col">Type</th><th scope="col">State</th><th scope="col">Findings</th></tr>
                     </thead>
                     <tbody>
                         {% for row in rows %}

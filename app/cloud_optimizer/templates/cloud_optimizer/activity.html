@@ -41,7 +41,7 @@
                             {% endfor %}
                         </select>
                     </label>
-                    <button class="button" type="submit">Apply filters</button>
+                    <button class="button" type="submit">Apply</button>
                     {% if selected.service or selected.resource or selected.action or selected.status %}
                         <a class="status-link" href="{% url 'activity' %}">Clear filters</a>
                     {% endif %}

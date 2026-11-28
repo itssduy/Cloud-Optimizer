@@ -12,59 +12,64 @@
     {% url 'deployment_status' as status_url %}
     <a class="skip-link" href="#main">Skip to main content</a>
 
-    <aside class="sidebar">
-        <a class="brand" href="{{ overview_url }}"><span class="logo">CO</span> Cloud Optimizer</a>
-        <p class="nav-label">WORKSPACE</p>
-        <nav aria-label="Main navigation">
-            <a href="{{ overview_url }}" {% if sample or request.resolver_match.url_name == 'home' %}class="active" aria-current="page"{% endif %}>Overview</a>
-            {% if sample %}
-                <a href="{{ overview_url }}?service=ec2#findings">EC2 instances</a>
-            {% else %}
-                <a href="{% url 'ec2_inventory' %}"
-                   {% if request.resolver_match.url_name == 'ec2_inventory' %}class="active" aria-current="page"
-                   {% elif request.resolver_match.url_name == 'ec2_detail' %}class="active" aria-current="location"{% endif %}>EC2 instances</a>
-            {% endif %}
-            {% if sample %}
-                <a href="{{ overview_url }}?service=s3#findings">S3 buckets</a>
-            {% else %}
-                <a href="{% url 's3_inventory' %}"
-                   {% if request.resolver_match.url_name == 's3_inventory' %}class="active" aria-current="page"
-                   {% elif request.resolver_match.url_name == 's3_detail' %}class="active" aria-current="location"{% endif %}>S3 buckets</a>
-            {% endif %}
-            {% if sample %}
-                <a href="{{ overview_url }}?service=all#findings">Findings</a>
-            {% else %}
-                <a href="{% url 'findings' %}" {% if request.resolver_match.url_name == 'findings' %}class="active" aria-current="page"{% endif %}>Findings</a>
-            {% endif %}
-            <a href="{% if sample %}{{ overview_url }}#spending{% else %}{% url 'spending' %}{% endif %}"
-               {% if request.resolver_match.url_name == 'spending' %}class="active" aria-current="page"{% endif %}>Spending</a>
-            <a href="{% if sample %}{{ overview_url }}#alerts{% else %}{% url 'alerts' %}{% endif %}"
-               {% if request.resolver_match.url_name == 'alerts' %}class="active" aria-current="page"
-               {% elif request.resolver_match.url_name == 'alert_detail' %}class="active" aria-current="location"{% endif %}>Alerts</a>
-            {% if not sample %}
-                <a href="{% url 'activity' %}" {% if request.resolver_match.url_name == 'activity' %}class="active" aria-current="page"{% endif %}>Activity</a>
-            {% endif %}
-            <a href="{% if sample %}#scan{% else %}{{ status_url }}{% endif %}" {% if request.resolver_match.url_name == 'deployment_status' %}class="active" aria-current="page"{% endif %}>Deployment status</a>
-        </nav>
-        <div class="sidebar-footer">EC2 &amp; S3 · AWS</div>
-    </aside>
+    <header class="consolebar">
+        <a class="brand" href="{{ overview_url }}"><span class="logo" aria-hidden="true"></span>Cloud Optimizer</a>
+        <span class="scope">{{ account_id }}{% if region %} · {{ region }}{% endif %}</span>
+        {% if sample %}
+            <span class="badge">Sample data</span>
+        {% elif me %}
+            <form class="account" method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <span>{{ me.email }}</span>
+                <button type="submit">Log out</button>
+            </form>
+        {% endif %}
+    </header>
 
-    <main id="main" tabindex="-1">
-        <header class="topbar">
-            <span>Workspace <span class="muted">/ {% block section_name %}Overview{% endblock %}</span></span>
-            {% if sample %}
-                <span class="badge">Sample data</span>
-            {% elif me %}
-                <form class="account" method="post" action="{% url 'logout' %}">
-                    {% csrf_token %}
-                    <span>{{ me.email }}</span>
-                    <button type="submit">Log out</button>
-                </form>
-            {% endif %}
-        </header>
-        <div class="page">
-            {% block dashboard_content %}{% endblock %}
-            <footer class="page-footer">Cloud Optimizer <span>{% if sample %}Local sample preview{% else %}Internal team workspace{% endif %}</span></footer>
-        </div>
-    </main>
+    <div class="shell">
+        <aside class="sidebar">
+            <nav aria-label="Main navigation">
+                <p class="nav-label">Dashboard</p>
+                <a href="{{ overview_url }}" {% if sample or request.resolver_match.url_name == 'home' %}class="active" aria-current="page"{% endif %}>Overview</a>
+                {% if sample %}
+                    <a href="{{ overview_url }}?service=all#findings">Findings</a>
+                {% else %}
+                    <a href="{% url 'findings' %}" {% if request.resolver_match.url_name == 'findings' %}class="active" aria-current="page"{% endif %}>Findings</a>
+                {% endif %}
+
+                <p class="nav-label">Resources</p>
+                {% if sample %}
+                    <a href="{{ overview_url }}?service=ec2#findings">EC2 instances</a>
+                    <a href="{{ overview_url }}?service=s3#findings">S3 buckets</a>
+                {% else %}
+                    <a href="{% url 'ec2_inventory' %}"
+                       {% if request.resolver_match.url_name == 'ec2_inventory' %}class="active" aria-current="page"
+                       {% elif request.resolver_match.url_name == 'ec2_detail' %}class="active" aria-current="location"{% endif %}>EC2 instances</a>
+                    <a href="{% url 's3_inventory' %}"
+                       {% if request.resolver_match.url_name == 's3_inventory' %}class="active" aria-current="page"
+                       {% elif request.resolver_match.url_name == 's3_detail' %}class="active" aria-current="location"{% endif %}>S3 buckets</a>
+                {% endif %}
+
+                <p class="nav-label">Billing</p>
+                <a href="{% if sample %}{{ overview_url }}#spending{% else %}{% url 'spending' %}{% endif %}"
+                   {% if request.resolver_match.url_name == 'spending' %}class="active" aria-current="page"{% endif %}>Spending</a>
+                <a href="{% if sample %}{{ overview_url }}#alerts{% else %}{% url 'alerts' %}{% endif %}"
+                   {% if request.resolver_match.url_name == 'alerts' %}class="active" aria-current="page"
+                   {% elif request.resolver_match.url_name == 'alert_detail' %}class="active" aria-current="location"{% endif %}>Alerts</a>
+
+                <p class="nav-label">Settings</p>
+                {% if not sample %}
+                    <a href="{% url 'activity' %}" {% if request.resolver_match.url_name == 'activity' %}class="active" aria-current="page"{% endif %}>Activity</a>
+                {% endif %}
+                <a href="{% if sample %}#scan{% else %}{{ status_url }}{% endif %}" {% if request.resolver_match.url_name == 'deployment_status' %}class="active" aria-current="page"{% endif %}>Deployment status</a>
+            </nav>
+        </aside>
+
+        <main id="main" tabindex="-1">
+            <div class="page">
+                <p class="breadcrumb">Cloud Optimizer <span aria-hidden="true">›</span> {% block section_name %}Overview{% endblock %}</p>
+                {% block dashboard_content %}{% endblock %}
+            </div>
+        </main>
+    </div>
 {% endblock %}

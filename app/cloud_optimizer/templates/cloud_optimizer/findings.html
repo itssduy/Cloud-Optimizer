@@ -7,7 +7,7 @@
 {% block dashboard_content %}
     <div class="page-heading">
         <h1>Findings</h1>
-        <a class="status-link" href="{{ request.get_full_path }}">Reload saved results</a>
+        <a class="status-link" href="{{ request.get_full_path }}">Refresh</a>
     </div>
     {% if findings_error %}
         <p class="notice">{{ findings_error }}</p>
@@ -29,7 +29,7 @@
         {% endif %}
 
         <section class="panel findings-results" aria-labelledby="saved-findings">
-            <h2 id="saved-findings">Saved findings</h2>
+            <h2 id="saved-findings">Findings</h2>
             <div class="section-heading status-note">
                 <nav class="filters" aria-label="Filter by service">
                     <a href="?service=all&amp;status={{ finding_status }}" {% if service == "all" %}aria-current="true"{% endif %}>All services</a>
