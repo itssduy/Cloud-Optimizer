@@ -58,7 +58,60 @@ def s3_tiering(f):
     }
 
 
-BUILDERS = {"ec2_idle_cpu": ec2_idle, "s3_incomplete_uploads": s3_uploads, "s3_tiering_candidate": s3_tiering}
+def rds_idle(f):
+    e = f["evidence"]
+    return {
+        "observed": f"No connections to {e['engine']} on {e['instance_class']} over {e['window']}.",
+        "why": "A running database is billed every hour, plus its storage, whether anyone uses it or not.",
+        "next_step": "Confirm nobody needs it, take a final snapshot, then stop or delete it.",
+        "limitations": [
+            "Connections are the only signal checked. A database used once a month can look idle.",
+            "A stopped RDS database starts itself again after 7 days.",
+        ],
+        "action": None,
+    }
+
+
+def ebs_unattached(f):
+    e = f["evidence"]
+    return {
+        "observed": f"{e['size_gb']} GiB {e['volume_type']} volume, not attached to any instance.",
+        "why": "Detached volumes are billed for their full size every month.",
+        "next_step": "If the data might matter, snapshot it first, then delete the volume.",
+        "limitations": ["Snapshots are cheaper than volumes, but they aren't free."],
+        "action": None,
+    }
+
+
+def lambda_unused(f):
+    e = f["evidence"]
+    return {
+        "observed": f"{e['invocations']} invocations over {e['window']}.",
+        "why": "Unused functions don't cost money, but they add clutter and old code that could be a risk.",
+        "next_step": "Check if anything still calls it, like a schedule or another service. If not, delete it.",
+        "limitations": ["Some functions only run monthly or yearly, which a short window won't catch."],
+        "action": None,
+    }
+
+
+def elb_idle(f):
+    e = f["evidence"]
+    if f["rule"] == "elb_no_targets":
+        observed = "This load balancer has no registered targets."
+    else:
+        observed = f"No traffic over {e['window']}, with {e['registered_targets']} registered targets."
+    return {
+        "observed": observed,
+        "why": "Load balancers are billed every hour they exist, even with no traffic.",
+        "next_step": "Check DNS records and apps that might point at it. If none do, delete it.",
+        "limitations": ["Only the base hourly price is estimated, not capacity units."],
+        "action": None,
+    }
+
+
+BUILDERS = {"ec2_idle_cpu": ec2_idle, "s3_incomplete_uploads": s3_uploads, "s3_tiering_candidate": s3_tiering,
+            "rds_idle": rds_idle, "ebs_unattached": ebs_unattached, "lambda_unused": lambda_unused,
+            "elb_idle": elb_idle, "elb_no_targets": elb_idle}
 
 
 def advice(finding):

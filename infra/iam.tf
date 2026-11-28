@@ -29,6 +29,12 @@ data "aws_iam_policy_document" "audit_read" {
       "s3:GetLifecycleConfiguration",
       "s3:ListBucketMultipartUploads",
       "ce:GetCostAndUsage",
+      "ec2:DescribeVolumes",
+      "rds:DescribeDBInstances",
+      "lambda:ListFunctions",
+      "elasticloadbalancing:DescribeLoadBalancers",
+      "elasticloadbalancing:DescribeTargetGroups",
+      "elasticloadbalancing:DescribeTargetHealth",
     ]
     resources = ["*"]
   }
