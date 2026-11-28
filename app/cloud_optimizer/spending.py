@@ -120,4 +120,6 @@ def service_breakdown(records):
             bill["amount"] += Decimal(str(money["amount"]))
             if money.get("estimated"):
                 bill["estimated"] = True
-    return sorted(totals.values(), key=lambda bill: bill["amount"], reverse=True)
+    # services that cost nothing in the period are left out
+    return sorted((bill for bill in totals.values() if bill["amount"] != 0),
+                  key=lambda bill: bill["amount"], reverse=True)

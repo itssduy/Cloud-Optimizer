@@ -27,8 +27,7 @@ class DashboardTests(SimpleTestCase):
         with patch("cloud_optimizer.dashboard.read_example", return_value=None):
             page = self.client.get("/preview/")
         self.assertContains(page, "No scans yet")
-        self.assertContains(page, "Spending unavailable")
-        self.assertContains(page, "Savings unavailable")
+        self.assertContains(page, '<p class="number">—</p>', count=4)
         self.assertNotContains(page, "$0.00")
 
     def test_scan_messages(self):

@@ -11,6 +11,14 @@ def iso(dt):
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def plural(count, word):
+    return f"{count} {word}" if count == 1 else f"{count} {word}s"
+
+
+def age_text(days):
+    return f" older than {plural(days, 'day')}" if days else ""
+
+
 def list_buckets(s3):
     buckets = []
     for page in s3.get_paginator("list_buckets").paginate():
@@ -111,12 +119,12 @@ def check_bucket(s3, cloudwatch, account_id, region, scan_id, now, name, upload_
             oldest = min(u["Initiated"] for u in stale)
             result["findings"].append(finding(
                 account_id, region, name, "s3_incomplete_uploads",
-                f"{len(stale)} incomplete multipart uploads older than {upload_age_days} days. "
+                f"{plural(len(stale), 'incomplete multipart upload')}{age_text(upload_age_days)}. "
                 "You pay for their parts but they aren't visible as objects.",
                 {"stale_upload_count": len(stale), "oldest_initiated": iso(oldest),
                  "age_threshold_days": upload_age_days, "checked_at": iso(now)},
                 {"action": "s3_apply_lifecycle",
-                 "text": f"Add a lifecycle rule to abort incomplete uploads after {max(1, upload_age_days)} days.",
+                 "text": f"Add a lifecycle rule to abort incomplete uploads after {plural(max(1, upload_age_days), 'day')}.",
                  "proposed_rule": {"ID": "cloud-optimizer-abort-uploads", "Status": "Enabled",
                                    "Filter": {},
                                    "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": max(1, upload_age_days)}}},

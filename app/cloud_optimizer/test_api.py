@@ -172,14 +172,14 @@ class ApiTests(SimpleTestCase):
             page = self.get(path)
             self.assertContains(page, "Review start")
             self.assertContains(page, "1.2%")
-            self.assertContains(page, "168 / 168")
+            self.assertContains(page, "168 of 168")
             self.assertContains(page, "30.37")
             self.assertContains(page, "observations may be stale")
         self.seed("finding_ec2_idle", status="resolved")
         self.seed("resource_ec2", last_check={"outcome": "insufficient_data", "note": "only 4 hourly samples"})
         page = self.get(path)
-        self.assertContains(page, "insufficient CPU data")
-        self.assertContains(page, "No open findings are saved")
+        self.assertContains(page, "Not enough data to judge")
+        self.assertContains(page, "No open findings")
         self.assertNotContains(page, "Review start")
 
     def test_s3_inventory_filters_within_the_deployment(self):
@@ -204,9 +204,9 @@ class ApiTests(SimpleTestCase):
     def test_s3_missing_metrics_and_zero_usage_are_distinct(self):
         self.seed("resource_s3", details={})
         page = self.get("/s3/acme-old-logs/")
-        self.assertContains(page, "Unavailable")
+        self.assertContains(page, "<dd>—</dd>", html=True)
         self.assertNotContains(page, "<dd>0\u00a0bytes</dd>", html=True)
-        self.assertContains(page, "No open findings are saved")
+        self.assertContains(page, "No open findings")
         self.seed("resource_s3", details={"standard_size_bytes": 0, "object_count": 0,
                                         "has_lifecycle_rules": False})
         self.assertContains(self.get("/s3/acme-old-logs/"), "<dd>0\u00a0bytes</dd>", html=True)
@@ -217,13 +217,13 @@ class ApiTests(SimpleTestCase):
         page = self.get("/s3/acme-old-logs/?review=s3_incomplete_uploads")
         self.assertContains(page, "DaysAfterInitiation")
         self.assertContains(page, "acme-old-logs")
-        self.assertContains(page, "Confirm and apply rule")
+        self.assertContains(page, "Apply rule")
         self.assertContains(page, "observations may be stale")
         self.assertEqual(self.client.post("/s3/acme-old-logs/", {"confirm": "yes"}).status_code, 400)
         self.seed("finding_s3_incomplete_uploads", status="resolved")
         self.assertEqual(self.get("/s3/acme-old-logs/?review=s3_incomplete_uploads").status_code, 404)
         self.assertContains(self.get("/s3/acme-old-logs/?review=s3_tiering_candidate"), "INTELLIGENT_TIERING")
-        self.assertContains(self.get("/s3/acme-old-logs/"), "Savings estimate unavailable")
+        self.assertNotContains(self.get("/s3/acme-old-logs/"), "Estimated savings")
 
     def test_s3_pages_require_an_active_team_user(self):
         user = users.list_users()[0]
@@ -280,7 +280,7 @@ class ApiTests(SimpleTestCase):
         self.assertNotContains(page, "Different account finding")
         self.assertNotContains(page, "Different region finding")
         filtered = self.get("/findings/?service=s3&status=open")
-        self.assertContains(filtered, 'href="/findings/?service=s3&amp;status=open">Reload saved results</a>')
+        self.assertContains(filtered, 'href="/findings/?service=s3&amp;status=open">Refresh</a>')
         self.assertNotContains(filtered, "old-staging-api")
         self.assertContains(self.get("/findings/?service=ec2&status=resolved"), "No resolved findings match these filters.")
 
@@ -374,7 +374,7 @@ class ApiTests(SimpleTestCase):
 
         week = self.client.get("/spending/", {"days": 7})
         for text in ("USD 8.90", "USD 0.00", "USD -1.20", "3 of 7 days", "Includes estimated billing",
-                     "Some billing days are missing", "AWS Cost Explorer", "Billing fetched", "All regions"):
+                     "Some billing days are missing", "AWS Cost Explorer", "Updated (UTC)", "All regions"):
             self.assertContains(week, text)
         self.assertNotContains(week, "Unfinished billing day")
         self.assertNotContains(week, "Different account service")
@@ -393,7 +393,7 @@ class ApiTests(SimpleTestCase):
         self.seed("finding_s3_tiering", savings_note="Depends on future access patterns")
         page = self.get("/spending/")
         for text in ("No billing data is saved", "USD 30.37", "estimated / month", "730 hours",
-                     "Achieved savings · Unavailable", "1 finding without a dollar estimate",
+                     "1 finding without a dollar estimate",
                      "Depends on future access patterns", "transition request charge"):
             self.assertContains(page, text)
         self.assertContains(page, 'href="/ec2/i-0abc123def4567890/"')
@@ -420,7 +420,7 @@ class ApiTests(SimpleTestCase):
         self.assertNotContains(page, "private diagnostic", status_code=503)
 
     def test_spending_requires_login_and_only_reads(self):
-        self.assertContains(self.get("/"), 'href="/spending/">View spending and savings</a>')
+        self.assertContains(self.get("/"), 'href="/spending/">All spending</a>')
         self.assertEqual(self.client.post("/spending/").status_code, 405)
         self.client.post("/logout/")
         with patch("cloud_optimizer.spending.data.costs") as costs:
@@ -465,7 +465,7 @@ class ApiTests(SimpleTestCase):
         self.assertContains(page, f'name="day" value="{day}"')
         self.assertNotContains(page, "USD 25.00")
         empty = self.client.get("/spending/", {"days": 7, "day": day, "service": "Amazon CloudWatch"})
-        self.assertContains(empty, "Spending · Amazon CloudWatch")
+        self.assertContains(empty, "Daily spend · Amazon CloudWatch")
         self.assertContains(empty, "No amounts are saved for this selection.")
         older_day = (datetime.now(timezone.utc).date() - timedelta(days=405)).isoformat()
         older = self.client.get("/spending/", {"days": 7, "day": older_day})

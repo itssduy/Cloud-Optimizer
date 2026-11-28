@@ -228,10 +228,13 @@ def render_dashboard(request, context, resources, findings, alerts):
         total = spending["total"]["amount"]
         for name, cost in spending["by_service"].items():
             amount = cost["amount"]
+            if amount == 0:
+                continue
             percent = 0
             if total > 0 and amount is not None and amount > 0:
                 percent = min(100, round(amount / total * 100))
             service_costs.append({"name": name, "amount": amount, "percent": percent})
+        service_costs.sort(key=lambda c: -(c["amount"] or 0))
 
     alert = alerts[0] if alerts else None
     if alert:

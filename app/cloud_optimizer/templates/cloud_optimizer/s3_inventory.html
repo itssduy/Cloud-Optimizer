@@ -12,7 +12,7 @@
     {% include "cloud_optimizer/s3_scan_notice.html" %}
     <section class="panel ec2-panel">
         <div class="section-heading">
-            <h2>Saved buckets</h2>
+            <h2>Buckets</h2>
             {% if has_inventory %}
                 <form method="get" class="ec2-controls">
                     <label>Findings
@@ -22,7 +22,7 @@
                             <option value="none" {% if finding_filter == "none" %}selected{% endif %}>No open findings</option>
                         </select>
                     </label>
-                    <button class="button" type="submit">Apply filter</button>
+                    <button class="button" type="submit">Apply</button>
                 </form>
             {% endif %}
         </div>

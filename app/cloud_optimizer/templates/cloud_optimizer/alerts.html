@@ -75,7 +75,7 @@
                 <p class="notice">Only {{ check.baseline_days }} of {{ check.baseline_window_days }} baseline days were available.</p>
             {% endif %}
             <section class="panel status-note" aria-labelledby="saved-alerts">
-                <h2 id="saved-alerts">Saved alerts</h2>
+                <h2 id="saved-alerts">Alerts</h2>
                 {% for row in alerts %}
                     {% with record=row.record %}
                         <article class="finding-entry">

@@ -16,9 +16,9 @@
 
         {% if review %}
             {% if review == "stop" %}
-                <p>Stopping interrupts workloads on this instance. Attached EBS volumes can continue to incur storage charges.</p>
+                <p class="status-note">Anything running on this instance will stop. Its EBS volumes are still billed.</p>
             {% else %}
-                <p>Starting this instance can resume compute charges.</p>
+                <p class="status-note">Compute charges resume once it's running.</p>
             {% endif %}
             <form method="post" action="{% url 'ec2_detail' instance.resource_id %}" class="ec2-controls status-note">
                 {% csrf_token %}
@@ -30,7 +30,7 @@
             <p class="notice">{{ request_error }}</p>
         {% elif action_record.outcome == "verified" %}
             <p class="badge ec2-result">Confirmed {{ action_record.observed_state }}</p>
-            <p class="status-note">EC2 reported the target state{% if checked_at %} at {{ checked_at|utc|date:"M j, Y · H:i" }} UTC{% endif %}.</p>
+            <p class="status-note muted">Checked{% if checked_at %} at {{ checked_at|utc|date:"M j, H:i" }} UTC{% endif %}.</p>
         {% elif action_record.outcome == "failed" %}
             <p class="notice">The request failed. Check the current instance state before trying again.</p>
             {% if access_denied %}<p class="status-note">EC2 denied this change. Ask your deployment operator to check the app's EC2 permissions.</p>{% endif %}
