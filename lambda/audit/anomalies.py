@@ -27,7 +27,7 @@ def check_spending(account_id, daily_costs, now, baseline_days=BASELINE_DAYS,
                    min_history=MIN_HISTORY_DAYS, percent=PERCENT, min_increase=MIN_INCREASE):
     """Looks at the most recent day of spend from #26's daily cost items.
 
-    Returns {"outcome", "date", "note", "alert"} where outcome is one of
+    Returns the check outcome, billing context and optional alert. Outcome is one of
     "alert", "normal", "insufficient_history", "stale", or "no_data".
     The alert key is the date, so running this twice doesn't make two alerts.
     """
@@ -37,7 +37,11 @@ def check_spending(account_id, daily_costs, now, baseline_days=BASELINE_DAYS,
     by_date = {c["date"]: c for c in daily_costs}
     latest = by_date[max(by_date)]
     day = date.fromisoformat(latest["date"])
-    result = {"outcome": None, "date": latest["date"], "note": None, "alert": None}
+    result = {
+        "outcome": None, "date": latest["date"], "note": None, "alert": None,
+        "billing_estimated": latest["total"].get("estimated"),
+        "billing_fetched_at": latest.get("fetched_at"),
+    }
 
     if (now.date() - day).days > STALE_AFTER_DAYS:
         result["outcome"] = "stale"
@@ -46,6 +50,8 @@ def check_spending(account_id, daily_costs, now, baseline_days=BASELINE_DAYS,
 
     window = [(day - timedelta(days=i)).isoformat() for i in range(1, baseline_days + 1)]
     baseline = [by_date[d] for d in window if d in by_date]
+    result["baseline_days"] = len(baseline)
+    result["baseline_window_days"] = baseline_days
     if len(baseline) < min_history:
         result["outcome"] = "insufficient_history"
         result["note"] = f"only {len(baseline)} of {min_history} days of history needed"

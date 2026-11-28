@@ -1,0 +1,86 @@
+{% extends "cloud_optimizer/dashboard_layout.html" %}
+{% load tz %}
+
+{% block title %}Activity · Cloud Optimizer{% endblock %}
+{% block section_name %}Activity{% endblock %}
+
+{% block dashboard_content %}
+    <h1>Activity</h1>
+    {% if read_error %}
+        <p class="notice" role="alert">{{ read_error }}</p>
+    {% else %}
+        <section class="scan-strip" aria-label="Deployment scope">
+            <div><span class="label">AWS account</span><strong>{{ account_id }}</strong></div>
+            <div><span class="label">Region</span><strong>{{ region }}</strong></div>
+        </section>
+        <section class="panel" aria-labelledby="recent-actions">
+            <h2 id="recent-actions">Recent resource actions</h2>
+            {% if has_records %}
+                <form method="get" class="ec2-controls activity-filters status-note">
+                    <label>Service
+                        <select name="service">
+                            <option value="">All services</option>
+                            <option value="ec2" {% if selected.service == "ec2" %}selected{% endif %}>EC2</option>
+                            <option value="s3" {% if selected.service == "s3" %}selected{% endif %}>S3</option>
+                        </select>
+                    </label>
+                    <label>Resource <input name="resource" type="search" value="{{ selected.resource }}" placeholder="Name or ID"></label>
+                    <label>Action
+                        <select name="action">
+                            <option value="">All actions</option>
+                            {% for key, label in action_labels.items %}
+                                <option value="{{ key }}" {% if selected.action == key %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label>Status
+                        <select name="status">
+                            <option value="">All statuses</option>
+                            {% for key, label in status_labels.items %}
+                                <option value="{{ key }}" {% if selected.status == key %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <button class="button" type="submit">Apply filters</button>
+                    {% if selected.service or selected.resource or selected.action or selected.status %}
+                        <a class="status-link" href="{% url 'activity' %}">Clear filters</a>
+                    {% endif %}
+                </form>
+                <p class="muted status-note">{{ rows|length }} shown from the latest {{ history_limit }} requests.</p>
+            {% endif %}
+            {% for row in rows %}
+                <article class="finding-entry">
+                    <div class="section-heading">
+                        <h3>{{ row.action }}</h3>
+                        <div><span class="service-tag {{ row.service|lower }}">{{ row.service }}</span> <span class="badge">{{ row.status }}</span></div>
+                    </div>
+                    <p class="muted">
+                        {% if row.resource_url %}<a href="{{ row.resource_url }}">{{ row.resource }}</a>{% else %}{{ row.resource|default:"Target unavailable" }}{% endif %}
+                        {% if row.requested_at %} · {{ row.requested_at|utc|date:"M j, Y · H:i" }} UTC{% endif %}
+                    </p>
+                    <p class="status-note">{{ row.explanation }}</p>
+                    <details>
+                        <summary>Request details</summary>
+                        <dl class="status-details">
+                            <div><dt class="label">Requested by</dt><dd>{{ row.actor|default:"Unavailable" }}</dd></div>
+                            <div><dt class="label">Target ID</dt><dd>{{ row.resource_id|default:"Unavailable" }}</dd></div>
+                            <div><dt class="label">Request time · UTC</dt><dd>{{ row.requested_at|utc|date:"M j, Y · H:i"|default:"Unavailable" }}</dd></div>
+                            <div><dt class="label">Last saved outcome check · UTC</dt><dd>{{ row.checked_at|utc|date:"M j, Y · H:i"|default:"Unavailable" }}</dd></div>
+                            {% if row.after_state %}<div><dt class="label">Requested state</dt><dd>{% if row.before_state %}{{ row.before_state }} → {% endif %}{{ row.after_state }}</dd></div>{% endif %}
+                            {% if row.observed_state %}<div><dt class="label">Observed state</dt><dd>{{ row.observed_state }}</dd></div>{% endif %}
+                            {% if row.rule_id %}<div><dt class="label">Lifecycle rule</dt><dd>{{ row.rule_id }}</dd></div>{% endif %}
+                            {% if row.cleanup_days != None %}<div><dt class="label">Abort incomplete uploads</dt><dd>After {{ row.cleanup_days }} days</dd></div>{% endif %}
+                            {% if row.transition_days != None %}<div><dt class="label">Transition eligible objects</dt><dd>After {{ row.transition_days }} days</dd></div>{% endif %}
+                            {% if row.minimum_bytes != None %}<div><dt class="label">Object size for transition</dt><dd>Larger than {{ row.minimum_bytes }} bytes</dd></div>{% endif %}
+                        </dl>
+                        {% if row.resource_url and row.request_id %}
+                            <a class="status-link" href="{{ row.resource_url }}?request={{ row.request_id }}">View resource outcome</a>
+                        {% endif %}
+                    </details>
+                </article>
+            {% empty %}
+                <p class="empty">{% if has_records %}No actions match these filters.{% else %}No resource actions have been recorded in this deployment.{% endif %}</p>
+            {% endfor %}
+        </section>
+    {% endif %}
+{% endblock %}

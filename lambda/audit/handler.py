@@ -50,6 +50,7 @@ class Audit:
         self.scan_sk = f"SCAN#{iso(now)}#{self.scan_id}"
         self.errors = []
         self.notes = []
+        self.spending_check = {"outcome": "pending"}
         self.counts = {"resources": 0, "findings": 0, "insufficient_data": 0}
 
     # locking, so two runs at the same time don't fight over the same items
@@ -90,6 +91,7 @@ class Audit:
             "insufficient_data_count": self.counts["insufficient_data"],
             "errors": self.errors,
             "notes": self.notes,
+            "spending_check": self.spending_check,
             "expires_at": int((self.now + timedelta(days=SCAN_TTL_DAYS)).timestamp()),
         }))
 
@@ -190,8 +192,10 @@ class Audit:
             "costs": self.step("costs", self.update_costs),
         }
         self.step("savings", self.update_savings)
-        if ok["costs"]:
-            self.step("anomalies", self.update_alerts)
+        if not ok["costs"]:
+            self.spending_check = {"outcome": "billing_failed"}
+        elif not self.step("anomalies", self.update_alerts):
+            self.spending_check = {"outcome": "failed"}
 
         if not ok["ec2"] and not ok["s3"]:
             status = "failed"
@@ -233,6 +237,7 @@ class Audit:
                 pass
         if result["outcome"] not in ("alert", "normal"):
             self.notes.append(f"spending check: {result['outcome']} ({result['note']})")
+        self.spending_check = {key: value for key, value in result.items() if key != "alert"}
 
     def save_deployment(self, status):
         self.table.update_item(
@@ -275,6 +280,8 @@ def lambda_handler(event, context, clients=None, now=None):
         status = audit.run()
     except Exception as e:
         audit.errors.append({"service": "audit", "region": region, "message": error_text(e)})
+        if audit.spending_check["outcome"] == "pending":
+            audit.spending_check = {"outcome": "failed"}
         try:
             audit.save_scan("failed", completed=True)
         finally:
