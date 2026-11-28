@@ -15,10 +15,30 @@ EC2_HOURLY_USD = {
     "c5.large": "0.085", "c5.xlarge": "0.17", "r5.large": "0.126",
 }
 
+# us-east-1 single-AZ MySQL/PostgreSQL/MariaDB on-demand $/hour. Multi-AZ is double.
+RDS_HOURLY_USD = {
+    "db.t3.micro": "0.017", "db.t3.small": "0.034", "db.t3.medium": "0.068", "db.t3.large": "0.136",
+    "db.t4g.micro": "0.016", "db.t4g.small": "0.032", "db.t4g.medium": "0.065", "db.t4g.large": "0.129",
+    "db.m5.large": "0.171", "db.m6g.large": "0.152", "db.r5.large": "0.25",
+}
+RDS_ENGINES = {"mysql", "postgres", "mariadb"}
+RDS_STORAGE_GB_MONTH = {"gp2": "0.115", "gp3": "0.115"}
+
+# us-east-1 EBS $/GB-month
+EBS_GB_MONTH = {"gp3": "0.08", "gp2": "0.10", "io1": "0.125", "io2": "0.125",
+                "st1": "0.045", "sc1": "0.015", "standard": "0.05"}
+
+# ALB and NLB both cost $0.0225/hour before capacity units
+ELB_HOURLY_USD = "0.0225"
+
 ASSUMPTIONS = [
     "EC2: us-east-1 Linux on-demand price, stopped for a full month (730 hours)",
     "EC2: stopping only saves compute, EBS volumes are still billed",
     "S3: no estimate yet, we can't see access patterns or incomplete upload sizes",
+    "RDS: us-east-1 on-demand instance price plus gp2/gp3 storage, if deleted",
+    "EBS: us-east-1 storage price per GB-month, if deleted (snapshots cost extra)",
+    "Load balancers: base hourly price only, capacity units not included",
+    "Lambda: unused functions cost nothing, so there's no savings number",
     "Estimates are potential savings, not money already saved",
 ]
 
@@ -86,6 +106,28 @@ def estimate(finding):
             return None, f"no price for {instance_type} in {finding['region']}"
         monthly = Decimal(price) * HOURS_PER_MONTH
         return money(monthly, True), f"{instance_type} at ${price}/hour x {HOURS_PER_MONTH} hours"
+    if finding["region"] != "us-east-1" and finding["rule"] in ("rds_idle", "ebs_unattached", "elb_idle", "elb_no_targets"):
+        return None, f"no prices for {finding['region']}"
+    if finding["rule"] == "rds_idle":
+        e = finding["evidence"]
+        price = RDS_HOURLY_USD.get(e.get("instance_class"))
+        if price is None or e.get("engine") not in RDS_ENGINES:
+            return None, f"no price for {e.get('engine')} on {e.get('instance_class')}"
+        hourly = Decimal(price) * (2 if e.get("multi_az") else 1)
+        storage = Decimal(RDS_STORAGE_GB_MONTH.get(e.get("storage_type"), "0")) * (e.get("storage_gb") or 0)
+        return (money(hourly * HOURS_PER_MONTH + storage, True),
+                f"{e['instance_class']} at ${hourly}/hour x {HOURS_PER_MONTH} hours plus {e.get('storage_gb')} GB storage")
+    if finding["rule"] == "ebs_unattached":
+        e = finding["evidence"]
+        price = EBS_GB_MONTH.get(e["volume_type"])
+        if price is None:
+            return None, f"no price for {e['volume_type']} volumes"
+        return money(Decimal(price) * e["size_gb"], True), f"{e['size_gb']} GB {e['volume_type']} at ${price}/GB-month"
+    if finding["rule"] in ("elb_idle", "elb_no_targets"):
+        return (money(Decimal(ELB_HOURLY_USD) * HOURS_PER_MONTH, True),
+                f"${ELB_HOURLY_USD}/hour x {HOURS_PER_MONTH} hours, capacity units not included")
+    if finding["rule"] == "lambda_unused":
+        return None, "unused functions don't cost anything"
     if finding["resource_type"] == "s3_bucket":
         return None, "S3 savings depend on access patterns we can't see"
     return None, "no estimate for this rule"

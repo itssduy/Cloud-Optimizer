@@ -56,6 +56,10 @@ small { font-size: 12px; }
 .badge { color: var(--text); background: #e0e0e0; }
 .ec2 { color: #8a3800; background: #ffd9be; }
 .s3 { color: #044317; background: var(--good-bg); }
+.ebs { color: #6e3800; background: #ffe2bc; }
+.rds { color: #001d6c; background: #d0e2ff; }
+.lambda { color: #491d8b; background: #e8daff; }
+.elb { color: #004144; background: #d9fbfb; }
 .button {
     display: inline-block;
     padding: 8px 16px;

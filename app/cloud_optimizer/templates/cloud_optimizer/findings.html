@@ -33,8 +33,7 @@
             <div class="section-heading status-note">
                 <nav class="filters" aria-label="Filter by service">
                     <a href="?service=all&amp;status={{ finding_status }}" {% if service == "all" %}aria-current="true"{% endif %}>All services</a>
-                    <a href="?service=ec2&amp;status={{ finding_status }}" {% if service == "ec2" %}aria-current="true"{% endif %}>EC2</a>
-                    <a href="?service=s3&amp;status={{ finding_status }}" {% if service == "s3" %}aria-current="true"{% endif %}>S3</a>
+                    {% for name in services %}<a href="?service={{ name|lower }}&amp;status={{ finding_status }}" {% if service == name|lower %}aria-current="true"{% endif %}>{{ name }}</a>{% endfor %}
                 </nav>
                 <nav class="filters" aria-label="Filter by status">
                     <a href="?service={{ service }}&amp;status=open" {% if finding_status == "open" %}aria-current="true"{% endif %}>Open</a>

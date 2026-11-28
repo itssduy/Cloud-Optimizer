@@ -43,7 +43,7 @@ Anyone who can sign in can use everything, including stopping instances and appl
 
 ## Scans
 
-The audit Lambda runs every day at 06:00 UTC. It scans EC2 and S3 in the deployment region, pulls the last 30 days of spending from Cost Explorer, and checks for spending spikes. It never changes resources by itself.
+The audit Lambda runs every day at 06:00 UTC. It scans EC2, S3, EBS, RDS, Lambda, and load balancers in the deployment region, pulls the last 30 days of spending from Cost Explorer, and checks for spending spikes. It never changes resources by itself.
 
 Run one now instead of waiting:
 
@@ -104,14 +104,15 @@ Then point the app and Lambda at the restored table (change the table name in Te
 ## Permissions
 
 - The app can read/write its own DynamoDB table, describe/start/stop EC2 instances, and read/update S3 lifecycle rules.
-- The audit Lambda is read-only on EC2, CloudWatch, S3, and Cost Explorer, plus its own table.
+- The audit Lambda is read-only on EC2, EBS, RDS, Lambda, load balancers, CloudWatch, S3, and Cost Explorer, plus its own table.
 - Both are limited to the account they're deployed in.
 
 ## Known limits
 
 - The app is public on its CloudFront URL. Only people added to Cognito can sign in, but anyone can see the sign-in page.
 - One account and one region per deployment.
-- Only EC2 and S3 for now.
+- Actions (stop, start, lifecycle rules) are only for EC2 and S3. RDS, EBS, Lambda, and load balancer findings are recommendations only.
+- Aurora databases aren't checked yet.
 
 ## Cleanup
 

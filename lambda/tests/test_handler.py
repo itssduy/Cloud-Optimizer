@@ -51,7 +51,10 @@ class HandlerTests(unittest.TestCase):
 
     def clients(self, ce=None, **overrides):
         c = {"ec2": self.ec2, "s3": self.s3, "cloudwatch": self.cw, "ce": ce or FakeCE(),
-             "sts": boto3.client("sts", region_name=REGION)}
+             "sts": boto3.client("sts", region_name=REGION),
+             "rds": boto3.client("rds", region_name=REGION),
+             "lambda": boto3.client("lambda", region_name=REGION),
+             "elbv2": boto3.client("elbv2", region_name=REGION)}
         c.update(overrides)
         return c
 

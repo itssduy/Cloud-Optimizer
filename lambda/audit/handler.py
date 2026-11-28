@@ -10,12 +10,16 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 import anomalies
 import costs
+import ebs
 import ec2
+import elb
+import functions
+import rds
 import s3
 
 LOCK_MINUTES = 15
 SCAN_TTL_DAYS = 90
-RESOURCE_TYPES = ["ec2_instance", "s3_bucket"]
+RESOURCE_TYPES = ["ec2_instance", "s3_bucket", "ebs_volume", "rds_instance", "lambda_function", "load_balancer"]
 
 
 def iso(dt):
@@ -181,14 +185,23 @@ class Audit:
 
     def run(self):
         c = self.clients
+        days = float(os.environ.get("EC2_WINDOW_MINUTES", 10080)) / 1440
+        scope = (self.account_id, self.region, self.scan_id, self.now)
         self.save_scan("running")
         ok = {
             "ec2": self.step("ec2", lambda: self.apply("ec2_instance", ec2.check_instances(
-                c["ec2"], c["cloudwatch"], self.account_id, self.region, self.scan_id, self.now,
-                days=float(os.environ.get("EC2_WINDOW_MINUTES", 10080)) / 1440))),
+                c["ec2"], c["cloudwatch"], *scope, days=days))),
             "s3": self.step("s3", lambda: self.apply("s3_bucket", s3.check_buckets(
                 c["s3"], c["cloudwatch"], self.account_id, self.region, self.scan_id, self.now,
                 upload_age_days=int(os.environ.get("UPLOAD_AGE_DAYS", 7))))),
+            "ebs": self.step("ebs", lambda: self.apply("ebs_volume", ebs.check_volumes(c["ec2"], *scope))),
+            "rds": self.step("rds", lambda: self.apply("rds_instance", rds.check_databases(
+                c["rds"], c["cloudwatch"], *scope, days=days))),
+            "lambda": self.step("lambda", lambda: self.apply("lambda_function", functions.check_functions(
+                c["lambda"], c["cloudwatch"], *scope, days=days,
+                skip={os.environ.get("AWS_LAMBDA_FUNCTION_NAME")}))),
+            "elb": self.step("elb", lambda: self.apply("load_balancer", elb.check_load_balancers(
+                c["elbv2"], c["cloudwatch"], *scope, days=days))),
             "costs": self.step("costs", self.update_costs),
         }
         self.step("savings", self.update_savings)
@@ -261,6 +274,9 @@ def lambda_handler(event, context, clients=None, now=None):
         "ec2": boto3.client("ec2", region_name=region),
         "s3": boto3.client("s3", region_name=region),
         "cloudwatch": boto3.client("cloudwatch", region_name=region),
+        "rds": boto3.client("rds", region_name=region),
+        "lambda": boto3.client("lambda", region_name=region),
+        "elbv2": boto3.client("elbv2", region_name=region),
         "ce": boto3.client("ce", region_name="us-east-1"),
         "sts": boto3.client("sts", region_name=region),
     }

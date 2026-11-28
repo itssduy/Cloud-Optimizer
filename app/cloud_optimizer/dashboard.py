@@ -16,7 +16,9 @@ from . import auth, data
 TEMPLATE = "cloud_optimizer/dashboard.html"
 STATUS_TEMPLATE = "cloud_optimizer/deployment_status.html"
 FINDINGS_TEMPLATE = "cloud_optimizer/findings.html"
-SERVICE_NAMES = {"ec2_instance": "EC2", "s3_bucket": "S3"}
+SERVICE_NAMES = {"ec2_instance": "EC2", "s3_bucket": "S3", "ebs_volume": "EBS", "rds_instance": "RDS",
+                 "lambda_function": "Lambda", "load_balancer": "ELB"}
+SERVICES = ["all"] + [name.lower() for name in SERVICE_NAMES.values()]
 RESOURCE_PAGES = {"ec2_instance": "ec2_detail", "s3_bucket": "s3_detail"}
 SCAN_STATES = {
     "no_scan": ("No saved scan", "Reload after the scheduled audit runs."),
@@ -135,7 +137,7 @@ def findings_page(request):
 @auth.login_required
 def signed_in_findings(request):
     service = request.GET.get("service", "all")
-    if service not in ("all", "ec2", "s3"):
+    if service not in SERVICES:
         service = "all"
     finding_status = request.GET.get("status", "open")
     if finding_status not in ("open", "resolved"):
@@ -156,7 +158,7 @@ def signed_in_findings(request):
         "scan_message": scan_message, "overdue": status["overdue"],
         "scan_finished_at": parse_datetime(scan.get("completed_at") or ""),
         "scan_started_at": parse_datetime(scan.get("started_at") or ""),
-        "service": service, "finding_status": finding_status, "rows": rows,
+        "service": service, "services": SERVICE_NAMES.values(), "finding_status": finding_status, "rows": rows,
     })
 
 
@@ -214,7 +216,7 @@ def finding_rows(resources, findings, service):
 
 def render_dashboard(request, context, resources, findings, alerts):
     service = request.GET.get("service", "all")
-    if service not in ("all", "ec2", "s3"):
+    if service not in SERVICES:
         service = "all"
     rows = finding_rows(resources, findings, service)
     scan = context.get("scan")
@@ -242,6 +244,7 @@ def render_dashboard(request, context, resources, findings, alerts):
 
     context.update({
         "service": service,
+        "services": SERVICE_NAMES.values(),
         "rows": rows,
         "finding_count": len(findings),
         "alert": alert,

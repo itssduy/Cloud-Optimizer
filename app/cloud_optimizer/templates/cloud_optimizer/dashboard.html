@@ -78,8 +78,7 @@
             <h2>Findings</h2>
             <nav class="filters" aria-label="Filter findings">
                 <a href="?service=all#findings" {% if service == 'all' %}aria-current="true"{% endif %}>All</a>
-                <a href="?service=ec2#findings" {% if service == 'ec2' %}aria-current="true"{% endif %}>EC2</a>
-                <a href="?service=s3#findings" {% if service == 's3' %}aria-current="true"{% endif %}>S3</a>
+                {% for name in services %}<a href="?service={{ name|lower }}#findings" {% if service == name|lower %}aria-current="true"{% endif %}>{{ name }}</a>{% endfor %}
             </nav>
         </div>
         <div class="table-scroll" role="region" aria-label="Resource findings" tabindex="0">
